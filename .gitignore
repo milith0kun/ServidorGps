@@ -1,0 +1,75 @@
+# Archivos sensibles y de seguridad
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.local
+.env.production
+config/secrets.json
+
+# Directorios de JDK (muy pesados)
+jdk-*/
+java-*/
+openjdk-*/
+
+# Base de datos SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencias de Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Archivos de construcción
+build/
+dist/
+out/
+target/
+
+# Archivos temporales del sistema
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos de Android
+*.apk
+*.aab
+.gradle/
+local.properties
+.android/
+
+# Archivos de respaldo
+*.bak
+*.backup
+*.old
+
+# Archivos de certificados y claves
+*.crt
+*.csr
+*.der
+*.p7b
+*.p7c
+*.p7r
+*.spc
+
+# Configuraciones específicas del entorno
+config/local.json
+config/production.json

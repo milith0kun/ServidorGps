@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Android - Tracking en Tiempo Real</title>
+    
+    <!-- Estilos CSS externos -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="header">
+        <h1>GPS Android</h1>
+        <p>Seguimiento de ubicación en tiempo real</p>
+    </div>
+    
+    <div class="status-bar">
+        <div class="status-item">
+            <div id="connectionStatus" class="status-indicator status-waiting"></div>
+            <span id="connectionText">Conectando...</span>
+        </div>
+        <div class="status-item">
+            <strong>Dispositivos activos:</strong>
+            <span id="activeDevices">0</span>
+        </div>
+        <div class="status-item">
+            <strong>Última actualización:</strong>
+            <span id="lastUpdate">Esperando datos...</span>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="panel">
+                <h3>🔍 Vista Familiar</h3>
+                <div class="device-controls">
+                    <button id="toggleAll" class="btn btn-primary">Mostrar Todos</button>
+                    <button id="centerAll" class="btn btn-secondary">Centrar Vista</button>
+                </div>
+                <div id="deviceList" class="device-list">
+                    <!-- Lista de dispositivos se generará dinámicamente -->
+                </div>
+            </div>
+            
+            <div class="panel" style="margin-top: 15px;">
+                <h3>📅 Filtros de Fecha y Hora</h3>
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label for="fechaInicio">Fecha de inicio:</label>
+                        <input type="datetime-local" id="fechaInicio" class="filter-input">
+                    </div>
+                    <div class="filter-group">
+                        <label for="fechaFin">Fecha de fin:</label>
+                        <input type="datetime-local" id="fechaFin" class="filter-input">
+                    </div>
+                    <div class="filter-group">
+                        <label for="dispositivoFiltro">Dispositivo:</label>
+                        <select id="dispositivoFiltro" class="filter-input">
+                            <option value="">Todos los dispositivos</option>
+                        </select>
+                    </div>
+                    <div class="filter-buttons">
+                        <button id="aplicarFiltros" class="btn btn-primary">Aplicar Filtros</button>
+                        <button id="limpiarFiltros" class="btn btn-secondary">Limpiar</button>
+                        <button id="verTiempoReal" class="btn btn-primary">Tiempo Real</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel" style="margin-top: 15px;">
+                <h3>🔍 Búsqueda y Navegación</h3>
+                <div class="search-controls">
+                    <div class="search-group">
+                        <label for="searchInput">Buscar lugar:</label>
+                        <input type="text" id="searchInput" class="filter-input" placeholder="Ingresa dirección o lugar...">
+                        <button id="searchButton" class="btn btn-primary">Buscar</button>
+                    </div>
+                    <div class="search-results" id="searchResults" style="display: none;">
+                        <!-- Resultados de búsqueda se mostrarán aquí -->
+                    </div>
+                    <div class="navigation-group" style="margin-top: 10px;">
+                        <label for="routeDestination">Destino para ruta:</label>
+                        <input type="text" id="routeDestination" class="filter-input" placeholder="Destino..." readonly>
+                        <div class="route-buttons">
+                            <button id="calculateRoute" class="btn btn-secondary" disabled>Calcular Ruta</button>
+                            <button id="clearRoute" class="btn btn-secondary" disabled>Limpiar Ruta</button>
+                        </div>
+                    </div>
+                    <div class="coordinate-group" style="margin-top: 10px;">
+                        <label>Hacer clic en el mapa para obtener coordenadas</label>
+                        <div class="coordinate-display">
+                            <span id="clickedCoordinates">Lat: --, Lon: --</span>
+                            <button id="copyCoordinates" class="btn btn-small" disabled>Copiar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+    
+    <div class="info-section">
+        <div class="info-panel">
+            <h3>Información de Ubicación</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Latitud</div>
+                    <div class="info-value" id="latitud">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Longitud</div>
+                    <div class="info-value" id="longitud">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Precisión</div>
+                    <div class="info-value" id="precision">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Última actualización</div>
+                    <div class="info-value" id="timestamp">--</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalUpdates">0</div>
+                <div class="stat-label">Actualizaciones recibidas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgAccuracy">--</div>
+                <div class="stat-label">Precisión promedio</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="sessionTime">00:00</div>
+                <div class="stat-label">Tiempo de sesión</div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="developer-info">
+                <strong>Desarrollado por:</strong> Edmil Jampier Saire Bustamante<br>
+                <strong>Código:</strong> 174449
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript externo -->
+    <script src="script.js"></script>
+</body>
+</html>
