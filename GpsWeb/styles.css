@@ -23,16 +23,17 @@ body {
 .header h1 {
     margin: 0;
     font-size: 1.75rem;
-    font-weight: 600;
-    color: #1a1a1a;
+    font-weight: 700;
+    color: #000000;
     letter-spacing: -0.025em;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .header p {
     margin: 8px 0 0 0;
     font-size: 0.95rem;
-    color: #6b7280;
-    font-weight: 400;
+    color: #2d3748;
+    font-weight: 500;
 }
 
 .main-container {
@@ -130,8 +131,9 @@ body {
 
 .panel h3 {
     margin: 0 0 15px 0;
-    color: #333;
+    color: #000000;
     font-size: 16px;
+    font-weight: 600;
 }
 
 .device-controls {
@@ -209,14 +211,15 @@ body {
 }
 
 .device-name {
-    font-weight: 500;
-    color: #333;
+    font-weight: 600;
+    color: #000000;
     font-size: 14px;
 }
 
 .device-status {
     font-size: 12px;
-    color: #666;
+    color: #1a202c;
+    font-weight: 500;
     margin-top: 2px;
 }
 
@@ -265,8 +268,8 @@ body {
 
 .filter-group label {
     font-size: 12px;
-    font-weight: 500;
-    color: #555;
+    font-weight: 600;
+    color: #000000;
 }
 
 .filter-input {
@@ -322,8 +325,8 @@ body {
 }
 
 .status-bar {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border: 2px solid #e5e7eb;
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 24px;
@@ -331,6 +334,17 @@ body {
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.status-bar strong {
+    color: #000000;
+    font-weight: 700;
+}
+
+.status-bar span {
+    color: #1a202c;
+    font-weight: 500;
 }
 
 .status-item {
@@ -392,16 +406,18 @@ body {
 }
 
 .info-label {
-    font-weight: 500;
-    color: #6b7280;
+    font-weight: 700;
+    color: #000000;
     font-size: 0.875rem;
     margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .info-value {
-    font-size: 1rem;
-    color: #1f2937;
-    font-weight: 500;
+    font-size: 1.125rem;
+    color: #000000;
+    font-weight: 700;
     word-break: break-all;
 }
 
@@ -436,16 +452,16 @@ body {
 }
 
 .stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #1f2937;
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #000000;
     margin-bottom: 4px;
 }
 
 .stat-label {
     font-size: 0.875rem;
-    color: #6b7280;
-    font-weight: 500;
+    color: #1a202c;
+    font-weight: 600;
 }
 
 /* Responsividad para tablets */
