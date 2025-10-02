@@ -878,12 +878,13 @@ app.use('*', (req, res) => {
 // Iniciar el servidor
 server.listen(PORT, '0.0.0.0', async () => {
     const ipLocal = obtenerIPLocal();
+    const ipPublica = await obtenerIPPublicaAWS();
     console.log('🚀 Servidor GPS Tracking iniciado');
     console.log(`📡 Servidor HTTP en puerto ${PORT}`);
     console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
     console.log(`🔗 Acceso local: http://localhost${PORT === 80 ? '' : ':' + PORT}`);
     console.log(`📱 Acceso desde móvil: http://${ipLocal}${PORT === 80 ? '' : ':' + PORT}`);
-    console.log(`🔗 Acceso desde AWS EC2: http://18.217.206.56${PORT === 80 ? '' : ':' + PORT}`);
+    console.log(`🔗 Acceso desde AWS EC2: http://${ipPublica}${PORT === 80 ? '' : ':' + PORT}`);
     
     // Configuración de LocalTunnel (sin tokens, gratuito y más estable)
 const startLocalTunnel = async () => {
@@ -985,7 +986,7 @@ const startLocalTunnel = async () => {
     console.log('📱 Endpoint para Android: POST /api/ubicacion');
     console.log('🗺️  Endpoint para web: GET /api/ubicacion/ultima');
     console.log(`🌐 IP Local detectada: ${ipLocal}`);
-    console.log('🌍 IP Pública AWS: 18.217.206.56');
+    console.log(`🌍 IP Pública AWS detectada: ${ipPublica}`);
     console.log('');
 });
 
