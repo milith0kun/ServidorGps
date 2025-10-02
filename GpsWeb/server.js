@@ -312,8 +312,22 @@ async function obtenerOCrearDispositivo(deviceId, userAgent) {
         
         console.log(`📱 Nuevo dispositivo registrado: ${deviceId}`);
     }
+    
+    // Obtener dispositivo y asegurar estructura correcta
+    let dispositivo = dispositivos.get(deviceId);
+    
+    // Si el dispositivo existe pero no tiene la estructura {info, ultimaUbicacion}, migrarlo
+    if (dispositivo && !dispositivo.info) {
+        console.log(`🔄 Migrando estructura de dispositivo ${deviceId}`);
+        dispositivo = {
+            info: dispositivo,
+            ultimaUbicacion: null
+        };
+        dispositivos.set(deviceId, dispositivo);
+    }
+    
     // Retornar el objeto completo del dispositivo (info + ultimaUbicacion)
-    return dispositivos.get(deviceId);
+    return dispositivo;
 }
 
 // ENDPOINTS DE LA API
