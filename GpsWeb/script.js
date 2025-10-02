@@ -218,10 +218,17 @@ function conectarWebSocket() {
                     
                     // Asegurar que el timestamp sea un número válido
                     let timestamp = ubicacion.timestamp;
+                    // Convertir timestamp a número si es string
                     if (typeof timestamp === 'string') {
-                        timestamp = parseInt(timestamp);
+                        // Si es formato ISO (2025-10-02T06:34:13.461Z), convertir a Date
+                        if (timestamp.includes('T') || timestamp.includes('-')) {
+                            timestamp = new Date(timestamp).getTime();
+                        } else {
+                            timestamp = parseInt(timestamp);
+                        }
                     }
-                    if (!timestamp || isNaN(timestamp)) {
+                    // Validar que sea un timestamp válido
+                    if (!timestamp || isNaN(timestamp) || timestamp < 1000000000000) {
                         timestamp = Date.now();
                     }
                     
@@ -934,12 +941,8 @@ async function buscarLugar(query) {
     try {
         console.log('🔍 Buscando:', query);
         
-        // Usar Nominatim de OpenStreetMap para búsqueda con User-Agent
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=pe`, {
-            headers: {
-                'User-Agent': 'GPS-Android-Web-App/1.0 (contact@example.com)'
-            }
-        });
+        // Usar el servidor backend como proxy para evitar CORS
+        const response = await fetch(`/api/buscar-lugar?q=${encodeURIComponent(query)}`);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -950,7 +953,7 @@ async function buscarLugar(query) {
         return results;
     } catch (error) {
         console.error('❌ Error en búsqueda:', error);
-        alert('Error al buscar lugar. Por favor, inténtalo de nuevo.');
+        alert('Error al buscar lugar. Verifica tu conexión e inténtalo de nuevo.');
         return [];
     }
 }

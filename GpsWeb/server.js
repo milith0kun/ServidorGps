@@ -1012,6 +1012,52 @@ app.get('/api/server-info', async (req, res) => {
     }
 });
 
+// Endpoint para búsqueda de lugares (proxy para Nominatim)
+app.get('/api/buscar-lugar', async (req, res) => {
+    try {
+        const query = req.query.q;
+        if (!query) {
+            return res.status(400).json({ error: 'Falta el parámetro de búsqueda' });
+        }
+        
+        console.log('🔍 Búsqueda de lugar:', query);
+        
+        // Hacer petición a Nominatim con User-Agent apropiado
+        const https = require('https');
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=pe`;
+        
+        https.get(url, {
+            headers: {
+                'User-Agent': 'GPS-Tracking-Server/1.0 (AWS Server)'
+            }
+        }, (apiRes) => {
+            let data = '';
+            
+            apiRes.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            apiRes.on('end', () => {
+                try {
+                    const results = JSON.parse(data);
+                    console.log(`✅ Encontrados ${results.length} resultados para: ${query}`);
+                    res.json(results);
+                } catch (error) {
+                    console.error('❌ Error parseando respuesta:', error);
+                    res.status(500).json({ error: 'Error procesando resultados' });
+                }
+            });
+        }).on('error', (error) => {
+            console.error('❌ Error en búsqueda:', error);
+            res.status(500).json({ error: 'Error al buscar lugar' });
+        });
+        
+    } catch (error) {
+        console.error('❌ Error en endpoint de búsqueda:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
 // Servir la página web principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
