@@ -859,11 +859,35 @@ app.get('/api/stats', async (req, res) => {
     }
 });
 
+// Endpoint para obtener información del servidor
+app.get('/api/server-info', async (req, res) => {
+    try {
+        const ipLocal = obtenerIPLocal();
+        const ipPublica = await obtenerIPPublicaAWS();
+        
+        const serverInfo = {
+            ipLocal: ipLocal,
+            ipPublica: ipPublica,
+            puerto: PORT,
+            servidor: 'GPS Tracking Server',
+            version: '1.0.0',
+            timestamp: new Date().toISOString(),
+            dispositivos: dispositivos.size,
+            tunnelUrl: global.tunnelUrl || null // URL dinámica del túnel
+        };
+        
+        console.log('📊 Información del servidor solicitada:', serverInfo);
+        res.json(serverInfo);
+    } catch (error) {
+        console.error('❌ Error obteniendo información del servidor:', error);
+        res.status(500).json({
+            error: 'Error interno del servidor',
+            message: error.message
+        });
+    }
+});
 
-
-
-
-// Servir la pÃ¡gina web principal
+// Servir la página web principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -1006,44 +1030,4 @@ process.on('SIGTERM', async () => {
     server.close(() => {
         console.log('✅ Servidor cerrado correctamente');
     });
-});
-
-
-// Endpoint para obtener información del servidor (IP y puerto dinámicos)
-app.get('/api/server-info', async (req, res) => {
-    try {
-        const ipLocal = obtenerIPLocal();
-        let ipPublica = null;
-        
-        // Intentar obtener IP pública de AWS dinámicamente
-        try {
-            ipPublica = await obtenerIPPublicaAWS();
-        } catch (error) {
-            console.log('⚠️  No se pudo obtener IP pública AWS:', error.message);
-        }
-        
-        const serverInfo = {
-            puerto: PORT,
-            ipLocal: ipLocal,
-            ipPublica: ipPublica,
-            timestamp: new Date().toISOString(),
-            // Información adicional del servidor
-            servidor: {
-                tipo: process.env.AWS_EXECUTION_ENV ? 'AWS EC2' : 'Local',
-                plataforma: process.platform,
-                version: process.version
-            }
-        };
-        
-        console.log('📡 Información del servidor solicitada:', serverInfo);
-        
-        res.json(serverInfo);
-        
-    } catch (error) {
-        console.error('❌ Error obteniendo información del servidor:', error);
-        res.status(500).json({
-            error: 'Error interno del servidor',
-            message: error.message
-        });
-    }
 });
