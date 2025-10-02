@@ -127,6 +127,9 @@ function conectarWebSocket() {
             document.getElementById('connectionStatus').className = 'status-indicator status-connected';
             document.getElementById('connectionText').textContent = 'Conectado';
             
+            // Actualizar información del servidor
+            actualizarInfoServidor();
+            
             // Limpiar intervalo de reconexión si existe
             if (reconnectInterval) {
                 clearInterval(reconnectInterval);
@@ -1439,5 +1442,54 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Los datos existentes se cargarán automáticamente desde initMapFallback
 });
+
+// Función para actualizar la información del servidor
+// ...
+// Función para actualizar información del servidor dinámicamente
+async function actualizarInfoServidor() {
+    try {
+        // Obtener información del servidor desde el endpoint
+        const response = await fetch('/api/server-info');
+        if (response.ok) {
+            const serverInfo = await response.json();
+            
+            // Actualizar la información en la interfaz
+            const serverInfoElement = document.getElementById('serverInfo');
+            if (serverInfoElement) {
+                let displayText = '';
+                
+                // Determinar qué IP mostrar basándose en el contexto
+                if (serverInfo.servidor.tipo === 'AWS EC2' && serverInfo.ipPublica) {
+                    displayText = `AWS: ${serverInfo.ipPublica}:${serverInfo.puerto}`;
+                } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    // Si estamos en localhost, mostrar la IP pública si está disponible
+                    if (serverInfo.ipPublica) {
+                        displayText = `Servidor: ${serverInfo.ipPublica}:${serverInfo.puerto}`;
+                    } else {
+                        displayText = `Local: ${serverInfo.ipLocal}:${serverInfo.puerto}`;
+                    }
+                } else {
+                    // Mostrar la IP actual del host
+                    displayText = `Servidor: ${window.location.hostname}:${serverInfo.puerto}`;
+                }
+                
+                serverInfoElement.textContent = displayText;
+                console.log('📡 Información del servidor actualizada:', displayText);
+            }
+        } else {
+            console.warn('⚠️  No se pudo obtener información del servidor');
+        }
+    } catch (error) {
+        console.error('❌ Error actualizando información del servidor:', error);
+        
+        // Fallback: mostrar información básica
+        const serverInfoElement = document.getElementById('serverInfo');
+        if (serverInfoElement) {
+            const currentHost = window.location.hostname;
+            const currentPort = window.location.port || '3000';
+            serverInfoElement.textContent = `Servidor: ${currentHost}:${currentPort}`;
+        }
+    }
+}
 
 // Inicialización completada - solo usando Leaflet

@@ -207,6 +207,53 @@ async function obtenerOCrearDispositivo(deviceId, userAgent) {
 
 // ENDPOINTS DE LA API
 
+// Función para obtener la IP pública de AWS dinámicamente
+async function obtenerIPPublicaAWS() {
+    try {
+        // Intentar obtener IP pública desde metadatos de AWS EC2
+        if (process.env.AWS_EXECUTION_ENV || process.env.EC2_INSTANCE_ID) {
+            const { execSync } = require('child_process');
+            const publicIP = execSync('curl -s http://169.254.169.254/latest/meta-data/public-ipv4', 
+                { timeout: 3000, encoding: 'utf8' }).trim();
+            if (publicIP && publicIP !== '404 - Not Found' && publicIP.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+                console.log(`🌍 IP pública AWS detectada dinámicamente: ${publicIP}`);
+                return publicIP;
+            }
+        }
+        
+        // Fallback: usar servicio externo para obtener IP pública
+        const https = require('https');
+        return new Promise((resolve) => {
+            const req = https.get('https://checkip.amazonaws.com/', (res) => {
+                let data = '';
+                res.on('data', (chunk) => data += chunk);
+                res.on('end', () => {
+                    const ip = data.trim();
+                    if (ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+                        console.log(`🌍 IP pública detectada desde servicio externo: ${ip}`);
+                        resolve(ip);
+                    } else {
+                        console.log('⚠️  No se pudo obtener IP pública, usando IP por defecto');
+                        resolve('18.217.206.56'); // IP por defecto como fallback
+                    }
+                });
+            });
+            req.on('error', () => {
+                console.log('⚠️  Error obteniendo IP pública, usando IP por defecto');
+                resolve('18.217.206.56'); // IP por defecto como fallback
+            });
+            req.setTimeout(3000, () => {
+                req.destroy();
+                console.log('⚠️  Timeout obteniendo IP pública, usando IP por defecto');
+                resolve('18.217.206.56'); // IP por defecto como fallback
+            });
+        });
+    } catch (error) {
+        console.log('⚠️  Error obteniendo IP pública:', error.message);
+        return '18.217.206.56'; // IP por defecto como fallback
+    }
+}
+
 // Endpoint específico para datos GPS desde app Android
 app.post('/api/gps', async (req, res) => {
     try {
@@ -836,7 +883,7 @@ server.listen(PORT, '0.0.0.0', async () => {
     console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
     console.log(`🔗 Acceso local: http://localhost${PORT === 80 ? '' : ':' + PORT}`);
     console.log(`📱 Acceso desde móvil: http://${ipLocal}${PORT === 80 ? '' : ':' + PORT}`);
-    console.log(`🔗 Acceso desde AWS EC2: http://18.188.7.21${PORT === 80 ? '' : ':' + PORT}`);
+    console.log(`🔗 Acceso desde AWS EC2: http://18.217.206.56${PORT === 80 ? '' : ':' + PORT}`);
     
     // Configuración de LocalTunnel (sin tokens, gratuito y más estable)
 const startLocalTunnel = async () => {
@@ -938,7 +985,7 @@ const startLocalTunnel = async () => {
     console.log('📱 Endpoint para Android: POST /api/ubicacion');
     console.log('🗺️  Endpoint para web: GET /api/ubicacion/ultima');
     console.log(`🌐 IP Local detectada: ${ipLocal}`);
-    console.log('🌍 IP Pública AWS: 18.188.7.21');
+    console.log('🌍 IP Pública AWS: 18.217.206.56');
     console.log('');
 });
 
@@ -958,4 +1005,44 @@ process.on('SIGTERM', async () => {
     server.close(() => {
         console.log('✅ Servidor cerrado correctamente');
     });
+});
+
+
+// Endpoint para obtener información del servidor (IP y puerto dinámicos)
+app.get('/api/server-info', async (req, res) => {
+    try {
+        const ipLocal = obtenerIPLocal();
+        let ipPublica = null;
+        
+        // Intentar obtener IP pública de AWS dinámicamente
+        try {
+            ipPublica = await obtenerIPPublicaAWS();
+        } catch (error) {
+            console.log('⚠️  No se pudo obtener IP pública AWS:', error.message);
+        }
+        
+        const serverInfo = {
+            puerto: PORT,
+            ipLocal: ipLocal,
+            ipPublica: ipPublica,
+            timestamp: new Date().toISOString(),
+            // Información adicional del servidor
+            servidor: {
+                tipo: process.env.AWS_EXECUTION_ENV ? 'AWS EC2' : 'Local',
+                plataforma: process.platform,
+                version: process.version
+            }
+        };
+        
+        console.log('📡 Información del servidor solicitada:', serverInfo);
+        
+        res.json(serverInfo);
+        
+    } catch (error) {
+        console.error('❌ Error obteniendo información del servidor:', error);
+        res.status(500).json({
+            error: 'Error interno del servidor',
+            message: error.message
+        });
+    }
 });
