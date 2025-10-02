@@ -176,14 +176,14 @@ dbManager.initialize().then(async () => {
     
     // Cargar dispositivos existentes
     try {
-        const dispositivos_db = await dbManager.obtenerDispositivos();
+        const dispositivos_db = await dbManager.getAllDevices();
         console.log(`📱 ${dispositivos_db.length} dispositivos cargados desde la base de datos`);
         
         dispositivos_db.forEach((dispositivo, index) => {
-            dispositivos.set(dispositivo.device_id, {
+            dispositivos.set(dispositivo.id, {
                 info: {
-                    deviceId: dispositivo.device_id,
-                    deviceName: dispositivo.device_name,
+                    deviceId: dispositivo.id,
+                    deviceName: dispositivo.name,
                     userAgent: dispositivo.user_agent || 'Desconocido',
                     color: coloresDispositivos[index % coloresDispositivos.length],
                     primeraConexion: dispositivo.created_at,
@@ -197,7 +197,7 @@ dbManager.initialize().then(async () => {
         // Cargar última ubicación de cada dispositivo
         for (const [deviceId, dispositivo] of dispositivos) {
             try {
-                const ultimaUbicacionDB = await dbManager.obtenerUltimaUbicacion(deviceId);
+                const ultimaUbicacionDB = await dbManager.getLastLocation(deviceId);
                 if (ultimaUbicacionDB) {
                     dispositivo.ultimaUbicacion = ultimaUbicacionDB;
                     if (!ultimaUbicacion || new Date(ultimaUbicacionDB.timestamp) > new Date(ultimaUbicacion.timestamp)) {
