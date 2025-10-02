@@ -503,14 +503,18 @@ body {
     
     .header {
         padding: 16px 0;
+        background: #ffffff !important;
+        border-bottom: 2px solid #e5e7eb;
     }
     
     .header h1 {
         font-size: 1.4rem;
+        color: #000000 !important;
     }
     
     .header p {
         font-size: 0.85rem;
+        color: #4b5563 !important;
     }
     
     .status-bar {
@@ -537,6 +541,8 @@ body {
         order: 2;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
+        background: #ffffff !important;
+        border-right: 1px solid #e5e7eb;
     }
     
     .map-container {
@@ -579,11 +585,14 @@ body {
     .panel {
         padding: 12px;
         margin-bottom: 10px;
+        background: #ffffff !important;
+        border: 1px solid #e5e7eb;
     }
     
     .panel h3 {
         font-size: 14px;
         margin-bottom: 10px;
+        color: #000000 !important;
     }
     
     .device-controls {
@@ -614,14 +623,18 @@ body {
     .device-item {
         padding: 8px;
         margin-bottom: 6px;
+        background: #f9fafb !important;
+        border: 1px solid #e5e7eb;
     }
     
     .device-name {
         font-size: 13px;
+        color: #000000 !important;
     }
     
     .device-status {
         font-size: 11px;
+        color: #4b5563 !important;
     }
     
     .info-section {
@@ -667,12 +680,19 @@ body {
 
 /* Responsividad para móviles pequeños */
 @media (max-width: 480px) {
+    .header {
+        background: #ffffff !important;
+        padding: 12px 0;
+    }
+    
     .header h1 {
         font-size: 1.2rem;
+        color: #000000 !important;
     }
     
     .header p {
         font-size: 0.8rem;
+        color: #4b5563 !important;
     }
     
     .map-container {
@@ -692,10 +712,12 @@ body {
     .sidebar {
         max-height: 180px;
         padding: 8px;
+        background: #ffffff !important;
     }
     
     .panel {
         padding: 8px;
+        background: #ffffff !important;
     }
     
     .btn {
