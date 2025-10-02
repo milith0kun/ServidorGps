@@ -317,13 +317,6 @@ function actualizarUbicacion(data) {
         });
         dispositivosVisibles.add(deviceId);
         
-        // Agregar al selector de filtros
-        const select = document.getElementById('dispositivoFiltro');
-        const option = document.createElement('option');
-        option.value = deviceId;
-        option.textContent = `Dispositivo ${deviceId}`;
-        select.appendChild(option);
-        
         // Crear elemento en la lista de dispositivos
         crearElementoDispositivo(deviceId, color);
     } else {
@@ -1484,58 +1477,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar eventos de botones
     document.getElementById('toggleAll').addEventListener('click', toggleTodosDispositivos);
     document.getElementById('centerAll').addEventListener('click', centrarEnTodos);
-    
-    // Configurar eventos de búsqueda y navegación
-    document.getElementById('searchButton').addEventListener('click', async function() {
-        const query = document.getElementById('searchInput').value.trim();
-        if (query) {
-            // Mostrar feedback visual
-            this.textContent = '🔍 Buscando...';
-            this.disabled = true;
-            
-            try {
-                const results = await buscarLugar(query);
-                mostrarResultadosBusqueda(results);
-            } finally {
-                // Restaurar botón
-                this.textContent = '🔍 Buscar';
-                this.disabled = false;
-            }
-        }
-    });
-    
-    document.getElementById('searchInput').addEventListener('keypress', async function(e) {
-        if (e.key === 'Enter') {
-            const query = this.value.trim();
-            if (query) {
-                const searchBtn = document.getElementById('searchButton');
-                searchBtn.textContent = '🔍 Buscando...';
-                searchBtn.disabled = true;
-                
-                try {
-                    const results = await buscarLugar(query);
-                    mostrarResultadosBusqueda(results);
-                } finally {
-                    searchBtn.textContent = '🔍 Buscar';
-                    searchBtn.disabled = false;
-                }
-            }
-        }
-    });
-    
-    // Limpiar resultados cuando se empieza a escribir una nueva búsqueda
-    document.getElementById('searchInput').addEventListener('input', function() {
-        if (this.value.trim().length === 0) {
-            document.getElementById('searchResults').style.display = 'none';
-        }
-    });
-    
-    document.getElementById('calculateRoute').addEventListener('click', calcularRuta);
-    document.getElementById('clearRoute').addEventListener('click', limpiarRuta);
-    document.getElementById('copyCoordinates').addEventListener('click', copiarCoordenadas);
-    
-    // Configurar eventos de clic en el mapa (se configurará después de inicializar el mapa)
-    setTimeout(configurarEventosClick, 1000);
     
     // Iniciar temporizador de sesión
     sessionTimer = setInterval(actualizarTemporizadorSesion, 1000);
