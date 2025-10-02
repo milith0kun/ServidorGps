@@ -50,32 +50,7 @@
             </div>
             
             <div class="panel" style="margin-top: 15px;">
-                <h3>📅 Filtros de Fecha y Hora</h3>
-                <div class="filter-controls">
-                    <div class="filter-group">
-                        <label for="fechaInicio">Fecha de inicio:</label>
-                        <input type="datetime-local" id="fechaInicio" class="filter-input">
-                    </div>
-                    <div class="filter-group">
-                        <label for="fechaFin">Fecha de fin:</label>
-                        <input type="datetime-local" id="fechaFin" class="filter-input">
-                    </div>
-                    <div class="filter-group">
-                        <label for="dispositivoFiltro">Dispositivo:</label>
-                        <select id="dispositivoFiltro" class="filter-input">
-                            <option value="">Todos los dispositivos</option>
-                        </select>
-                    </div>
-                    <div class="filter-buttons">
-                        <button id="aplicarFiltros" class="btn btn-primary">Aplicar Filtros</button>
-                        <button id="limpiarFiltros" class="btn btn-secondary">Limpiar</button>
-                        <button id="verTiempoReal" class="btn btn-primary">Tiempo Real</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="panel" style="margin-top: 15px;">
-                <h3>🔍 Búsqueda y Navegación</h3>
+                <h3>� Marcar Destino y Navegar</h3>
                 <div class="search-controls">
                     <div class="search-group">
                         <label for="searchInput">Buscar lugar:</label>
@@ -85,19 +60,19 @@
                     <div class="search-results" id="searchResults" style="display: none;">
                         <!-- Resultados de búsqueda se mostrarán aquí -->
                     </div>
-                    <div class="navigation-group" style="margin-top: 10px;">
-                        <label for="routeDestination">Destino para ruta:</label>
-                        <input type="text" id="routeDestination" class="filter-input" placeholder="Destino..." readonly>
-                        <div class="route-buttons">
-                            <button id="calculateRoute" class="btn btn-secondary" disabled>Calcular Ruta</button>
-                            <button id="clearRoute" class="btn btn-secondary" disabled>Limpiar Ruta</button>
-                        </div>
-                    </div>
                     <div class="coordinate-group" style="margin-top: 10px;">
-                        <label>Hacer clic en el mapa para obtener coordenadas</label>
+                        <label><strong>Haz clic en el mapa</strong> para marcar un destino</label>
                         <div class="coordinate-display">
                             <span id="clickedCoordinates">Lat: --, Lon: --</span>
                             <button id="copyCoordinates" class="btn btn-small" disabled>Copiar</button>
+                        </div>
+                    </div>
+                    <div class="navigation-group" style="margin-top: 10px;">
+                        <label for="routeDestination">📌 Punto marcado:</label>
+                        <input type="text" id="routeDestination" class="filter-input" placeholder="Haz clic en el mapa..." readonly>
+                        <div class="route-buttons">
+                            <button id="calculateRoute" class="btn btn-primary" disabled>🚗 Ir a este punto</button>
+                            <button id="clearRoute" class="btn btn-secondary" disabled>Limpiar</button>
                         </div>
                     </div>
                 </div>

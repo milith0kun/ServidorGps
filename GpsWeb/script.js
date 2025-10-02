@@ -1315,9 +1315,19 @@ function limpiarRuta() {
         console.log('✅ Marcador de búsqueda removido');
     }
     
+    // Limpiar marcador de destino si existe
+    if (marcadorDestino) {
+        map.removeLayer(marcadorDestino);
+        marcadorDestino = null;
+        console.log('✅ Marcador de destino removido');
+    }
+    
     // Limpiar destino y coordenadas
     document.getElementById('routeDestination').value = '';
+    document.getElementById('clickedCoordinates').textContent = 'Lat: --, Lon: --';
+    document.getElementById('copyCoordinates').disabled = true;
     coordenadasSeleccionadas = null;
+    window.lastClickedCoords = null;
     
     // Deshabilitar y actualizar botones
     const clearBtn = document.getElementById('clearRoute');
@@ -1334,7 +1344,7 @@ function limpiarRuta() {
 }
 
 // Función auxiliar para mostrar notificaciones
-function mostrarNotificacion(mensaje, tipo = 'success') {
+function mostrarNotificacion(mensaje, tipo = 'success', duracion = 3000) {
     const notification = document.createElement('div');
     const backgroundColor = tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6';
     
@@ -1358,7 +1368,7 @@ function mostrarNotificacion(mensaje, tipo = 'success') {
     notification.textContent = mensaje;
     document.body.appendChild(notification);
     
-    // Auto-remove after 3 seconds
+    // Auto-remove after specified duration
     setTimeout(() => {
         if (document.body.contains(notification)) {
             notification.style.animation = 'slideOutRight 0.3s ease-in forwards';
@@ -1368,7 +1378,7 @@ function mostrarNotificacion(mensaje, tipo = 'success') {
                 }
             }, 300);
         }
-    }, 3000);
+    }, duracion);
 }
 
 // Agregar estilos para las animaciones si no existen
@@ -1401,6 +1411,9 @@ if (!document.querySelector('#notification-styles')) {
     document.head.appendChild(style);
 }
 
+// Variable global para el marcador de destino
+let marcadorDestino = null;
+
 function configurarEventosClick() {
     if (!map) return;
     
@@ -1408,12 +1421,38 @@ function configurarEventosClick() {
         const lat = e.latlng.lat;
         const lon = e.latlng.lng;
         
+        // Eliminar marcador anterior si existe
+        if (marcadorDestino) {
+            map.removeLayer(marcadorDestino);
+        }
+        
+        // Crear nuevo marcador en el punto clickeado
+        const iconoDestino = L.divIcon({
+            className: 'custom-marker-destination',
+            html: '<div style="background: #dc3545; width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><div style="width: 10px; height: 10px; background: white; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg);"></div></div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 30]
+        });
+        
+        marcadorDestino = L.marker([lat, lon], { icon: iconoDestino })
+            .addTo(map)
+            .bindPopup(`<strong>📍 Destino Marcado</strong><br>Lat: ${lat.toFixed(6)}<br>Lon: ${lon.toFixed(6)}`);
+        
         // Actualizar display de coordenadas
         document.getElementById('clickedCoordinates').textContent = `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`;
         document.getElementById('copyCoordinates').disabled = false;
         
-        // Guardar coordenadas para copiar
+        // Actualizar campo de destino
+        document.getElementById('routeDestination').value = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+        document.getElementById('calculateRoute').disabled = false;
+        document.getElementById('clearRoute').disabled = false;
+        
+        // Guardar coordenadas
         window.lastClickedCoords = { lat, lon };
+        coordenadasSeleccionadas = { lat, lon };
+        
+        // Mostrar notificación
+        mostrarNotificacion('📍 Punto marcado! Haz clic en "Ir a este punto" para crear la ruta', 3000);
     });
 }
 
@@ -1445,9 +1484,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar eventos de botones
     document.getElementById('toggleAll').addEventListener('click', toggleTodosDispositivos);
     document.getElementById('centerAll').addEventListener('click', centrarEnTodos);
-    document.getElementById('aplicarFiltros').addEventListener('click', aplicarFiltros);
-    document.getElementById('limpiarFiltros').addEventListener('click', limpiarFiltros);
-    document.getElementById('verTiempoReal').addEventListener('click', volverTiempoReal);
     
     // Configurar eventos de búsqueda y navegación
     document.getElementById('searchButton').addEventListener('click', async function() {
