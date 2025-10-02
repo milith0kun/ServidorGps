@@ -1438,6 +1438,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Conectar WebSocket
     conectarWebSocket();
     
+    // Actualizar información del servidor dinámicamente
+    actualizarInfoServidor();
+    
     console.log('✅ Aplicación inicializada correctamente');
     
     // Los datos existentes se cargarán automáticamente desde initMapFallback
