@@ -89,12 +89,11 @@ function initMapFallback() {
             trackResize: true
         });
         
-        // Agregar capa de Google Maps (estilo similar a Google Maps)
-        L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            attribution: '© Google Maps',
-            maxZoom: 20,
-            minZoom: 3,
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        // Agregar capa de OpenStreetMap (mejor contraste y legibilidad)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19,
+            minZoom: 3
         }).addTo(map);
         
         // Forzar redimensionamiento del mapa
