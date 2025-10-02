@@ -312,7 +312,8 @@ async function obtenerOCrearDispositivo(deviceId, userAgent) {
         
         console.log(`📱 Nuevo dispositivo registrado: ${deviceId}`);
     }
-    return dispositivos.get(deviceId).info;
+    // Retornar el objeto completo del dispositivo (info + ultimaUbicacion)
+    return dispositivos.get(deviceId);
 }
 
 // ENDPOINTS DE LA API
@@ -560,7 +561,7 @@ app.post('/api/ubicacion', async (req, res) => {
         
         // Actualizar ubicación del dispositivo en memoria
         dispositivo.ultimaUbicacion = nuevaUbicacion;
-        dispositivo.ultimaActividad = new Date().toISOString();
+        dispositivo.info.ultimaActividad = new Date().toISOString();
         
         // Mantener compatibilidad: guardar como última ubicación general
         ultimaUbicacion = nuevaUbicacion;
@@ -570,9 +571,9 @@ app.post('/api/ubicacion', async (req, res) => {
             deviceId: dispositivoId,
             ubicacion: nuevaUbicacion,
             dispositivo: {
-                id: dispositivo.id,
-                nombre: dispositivo.nombre,
-                color: dispositivo.color
+                id: dispositivo.info.id,
+                nombre: dispositivo.info.nombre,
+                color: dispositivo.info.color
             }
         }, 'ubicacion_dispositivo');
         
