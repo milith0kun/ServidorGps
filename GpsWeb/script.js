@@ -1447,8 +1447,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Función para actualizar la información del servidor
-// ...
-// Función para actualizar información del servidor dinámicamente
 async function actualizarInfoServidor() {
     try {
         // Obtener información del servidor desde el endpoint
@@ -1461,19 +1459,19 @@ async function actualizarInfoServidor() {
             if (serverInfoElement) {
                 let displayText = '';
                 
-                // Determinar qué IP mostrar basándose en el contexto
+                // URL del túnel estática (no cambia)
+                const tunnelUrlEstatica = 'https://gps-tracking-static.loca.lt';
+                
+                // Determinar qué IP mostrar - siempre mostrar IP de instancia y puerto
                 if (serverInfo.servidor.tipo === 'AWS EC2' && serverInfo.ipPublica) {
-                    displayText = `AWS: ${serverInfo.ipPublica}:${serverInfo.puerto}`;
-                } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    // Si estamos en localhost, mostrar la IP pública si está disponible
-                    if (serverInfo.ipPublica) {
-                        displayText = `Servidor: ${serverInfo.ipPublica}:${serverInfo.puerto}`;
-                    } else {
-                        displayText = `Local: ${serverInfo.ipLocal}:${serverInfo.puerto}`;
-                    }
+                    // Para AWS, mostrar la IP pública de la instancia
+                    displayText = `AWS: ${serverInfo.ipPublica}:${serverInfo.puerto} | Túnel: ${tunnelUrlEstatica}`;
+                } else if (serverInfo.ipPublica) {
+                    // Si hay IP pública disponible, mostrarla
+                    displayText = `Servidor: ${serverInfo.ipPublica}:${serverInfo.puerto} | Túnel: ${tunnelUrlEstatica}`;
                 } else {
-                    // Mostrar la IP actual del host
-                    displayText = `Servidor: ${window.location.hostname}:${serverInfo.puerto}`;
+                    // Fallback a IP local
+                    displayText = `Local: ${serverInfo.ipLocal}:${serverInfo.puerto} | Túnel: ${tunnelUrlEstatica}`;
                 }
                 
                 serverInfoElement.textContent = displayText;
@@ -1485,12 +1483,13 @@ async function actualizarInfoServidor() {
     } catch (error) {
         console.error('❌ Error actualizando información del servidor:', error);
         
-        // Fallback: mostrar información básica
+        // Fallback: mostrar información básica con túnel estático
         const serverInfoElement = document.getElementById('serverInfo');
         if (serverInfoElement) {
             const currentHost = window.location.hostname;
             const currentPort = window.location.port || '3000';
-            serverInfoElement.textContent = `Servidor: ${currentHost}:${currentPort}`;
+            const tunnelUrlEstatica = 'https://gps-tracking-static.loca.lt';
+            serverInfoElement.textContent = `Servidor: ${currentHost}:${currentPort} | Túnel: ${tunnelUrlEstatica}`;
         }
     }
 }
