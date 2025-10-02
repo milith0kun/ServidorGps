@@ -8,19 +8,54 @@ const moment = require('moment');
 const os = require('os');
 const { spawn } = require('child_process');
 
-// Función para obtener la IP local
+// Importar ngrok solo si está disponible
+let ngrok = null;
+try {
+    ngrok = require('ngrok');
+} catch (error) {
+    console.log('⚠️  ngrok no está disponible, continuando sin túnel público');
+}
+
+/**
+ * Función unificada para obtener IP del servidor
+ * Funciona tanto en desarrollo local como en AWS
+ */
 function obtenerIPLocal() {
     const interfaces = os.networkInterfaces();
+    let ipPublica = null;
     let ipWiFi = null;
     let ipOtra = null;
     
+    // Intentar obtener IP pública desde metadatos de AWS EC2
+    if (process.env.AWS_EXECUTION_ENV || process.env.EC2_INSTANCE_ID) {
+        try {
+            const { execSync } = require('child_process');
+            const publicIP = execSync('curl -s http://169.254.169.254/latest/meta-data/public-ipv4', 
+                { timeout: 3000, encoding: 'utf8' }).trim();
+            if (publicIP && publicIP !== '404 - Not Found' && publicIP.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+                console.log(`🌍 IP pública AWS detectada: ${publicIP}`);
+                return publicIP;
+            }
+        } catch (error) {
+            console.log('⚠️  No se pudo obtener IP pública de AWS metadata');
+        }
+    }
+    
+    // Detectar IP desde interfaces de red
     for (const interfaceName in interfaces) {
         const interfaceInfo = interfaces[interfaceName];
         for (const info of interfaceInfo) {
-            // Buscar IPv4 no loopback y no interna
             if (info.family === 'IPv4' && !info.internal) {
+                // IP pública (no privada)
+                if (!info.address.startsWith('192.168.') && 
+                    !info.address.startsWith('10.') && 
+                    !(info.address.startsWith('172.') && 
+                      parseInt(info.address.split('.')[1]) >= 16 && 
+                      parseInt(info.address.split('.')[1]) <= 31)) {
+                    ipPublica = info.address;
+                }
                 // Priorizar IP de red WiFi (192.168.x.x)
-                if (info.address.startsWith('192.168.')) {
+                else if (info.address.startsWith('192.168.')) {
                     ipWiFi = info.address;
                 }
                 // Guardar otras IPs como respaldo
@@ -34,29 +69,115 @@ function obtenerIPLocal() {
         }
     }
     
-    // Priorizar IP WiFi, luego otras IPs locales, finalmente localhost
-    return ipWiFi || ipOtra || 'localhost';
+    // Prioridad: IP pública > IP WiFi > otras IPs locales > localhost
+    const ipDetectada = ipPublica || ipWiFi || ipOtra || 'localhost';
+    const tipoIP = ipPublica ? 'pública' : (ipWiFi ? 'WiFi local' : 'privada');
+    console.log(`🌐 IP detectada: ${ipDetectada} (${tipoIP})`);
+    return ipDetectada;
+}
+
+/**
+ * Configuración automática de ngrok con reintentos
+ */
+async function configurarNgrokAutomatico(puerto) {
+    if (!ngrok) {
+        console.log('⚠️  ngrok no disponible, saltando configuración de túnel');
+        return null;
+    }
+
+    const maxReintentos = 3;
+    let intento = 1;
+    
+    while (intento <= maxReintentos) {
+        try {
+            console.log(`🌐 Iniciando túnel ngrok público (intento ${intento}/${maxReintentos})...`);
+            
+            // Configuración de ngrok para acceso público sin restricciones
+            const opciones = {
+                addr: puerto,
+                region: process.env.NGROK_REGION || 'us', // Región configurable
+                bind_tls: true, // Forzar HTTPS
+                inspect: false, // Desactivar interfaz web de ngrok para servidores
+                // Configuraciones para acceso público
+                host_header: 'rewrite', // Reescribir headers del host
+                schemes: ['https'], // Solo HTTPS para mayor seguridad
+                // Permitir acceso desde cualquier origen
+                basic_auth: undefined, // Sin autenticación básica
+                oauth: undefined, // Sin OAuth
+                circuit_breaker: undefined, // Sin circuit breaker
+                compression: true, // Habilitar compresión
+                // Headers personalizados para evitar restricciones
+                request_header: {
+                    add: [
+                        'X-Forwarded-Proto: https',
+                        'X-Real-IP: $remote_addr'
+                    ]
+                },
+                response_header: {
+                    add: [
+                        'Access-Control-Allow-Origin: *',
+                        'Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS',
+                        'Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With',
+                        'X-Frame-Options: SAMEORIGIN',
+                        'X-Content-Type-Options: nosniff'
+                    ]
+                }
+            };
+            
+            // Si hay un subdominio personalizado configurado
+            if (process.env.NGROK_SUBDOMAIN) {
+                opciones.subdomain = process.env.NGROK_SUBDOMAIN;
+                console.log(`🎯 Usando subdominio personalizado: ${process.env.NGROK_SUBDOMAIN}`);
+            }
+            
+            const url = await ngrok.connect(opciones);
+            console.log(`✅ Túnel ngrok público activo: ${url}`);
+            console.log(`🌍 Accesible desde cualquier dispositivo y ubicación`);
+            console.log(`📱 URL para aplicaciones móviles: ${url}`);
+            console.log(`🔗 URL para navegadores web: ${url}`);
+            
+            // Guardar URL para uso global
+            global.ngrokUrl = url;
+            
+            return url;
+            
+        } catch (error) {
+            console.error(`❌ Error en intento ${intento}:`, error.message);
+            
+            if (intento === maxReintentos) {
+                console.log('⚠️  No se pudo establecer túnel ngrok, continuando sin él...');
+                console.log('💡 Verifica tu token de ngrok y conectividad a internet');
+                return null;
+            }
+            
+            // Esperar antes del siguiente intento
+            await new Promise(resolve => setTimeout(resolve, 2000 * intento));
+            intento++;
+        }
+    }
+    
+    return null;
 }
 
 // Configuración del servidor
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SERVER_IP = process.env.SERVER_IP || obtenerIPLocal();
+const NGROK_ENABLED = process.env.NGROK_ENABLED !== 'false';
 
 // Middleware
 app.use(cors({
-    origin: '*', // Permitir acceso desde cualquier origen
-    credentials: true, // Permitir credenciales
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    origin: '*', // Permitir todos los orígenes para desarrollo
+    credentials: true
 }));
-app.use(express.json());
-app.use(express.static(__dirname)); // Servir archivos estáticos desde la raíz del proyecto
+app.use(express.json({ limit: '10mb' }));
+app.use(express.static(__dirname));
 
 // Estructura para almacenar múltiples dispositivos y sus ubicaciones
-let dispositivos = new Map(); // Map<deviceId, {info, ultimaUbicacion}>
-let ultimaUbicacion = null; // Mantener compatibilidad con versión anterior
+let dispositivos = new Map();
+let ultimaUbicacion = null;
 
-// Colores predefinidos para dispositivos
+// Colores para dispositivos
 const coloresDispositivos = [
     '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
     '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
@@ -67,48 +188,41 @@ console.log('🗄️ Inicializando base de datos...');
 dbManager.initialize().then(async () => {
     console.log('✅ Base de datos inicializada correctamente');
     
-    // Cargar dispositivos existentes desde la base de datos
+    // Cargar dispositivos existentes
     try {
-        const dispositivosDB = await dbManager.getAllDevices();
-        console.log(`📱 Cargando ${dispositivosDB.length} dispositivos desde la base de datos...`);
+        const dispositivos_db = await dbManager.getAllDevices();
+        console.log(`📱 ${dispositivos_db.length} dispositivos cargados desde la base de datos`);
         
-        for (const dispositivoDB of dispositivosDB) {
-            const dispositivoInfo = {
-                id: dispositivoDB.id,
-                nombre: dispositivoDB.name,
-                color: dispositivoDB.color,
-                userAgent: dispositivoDB.user_agent,
-                creado: dispositivoDB.created_at,
-                activo: dispositivoDB.is_active
+        // Cargar cada dispositivo y su última ubicación
+        for (const dispositivo_db of dispositivos_db) {
+            const dispositivo = {
+                id: dispositivo_db.id,
+                nombre: dispositivo_db.name,
+                userAgent: dispositivo_db.user_agent,
+                color: coloresDispositivos[dispositivos.size % coloresDispositivos.length],
+                fechaCreacion: dispositivo_db.created_at,
+                fechaActualizacion: dispositivo_db.updated_at,
+                totalUbicaciones: dispositivo_db.total_locations || 0,
+                ubicaciones: []
             };
             
-            // Obtener la última ubicación del dispositivo
-            let ultimaUbicacion = null;
+            // Cargar última ubicación conocida
             try {
-                const ultimaUbicacionDB = await dbManager.getLastLocation(dispositivoDB.id);
+                const ultimaUbicacionDB = await dbManager.getLastLocation(dispositivo_db.id);
                 if (ultimaUbicacionDB) {
-                    ultimaUbicacion = {
-                        lat: ultimaUbicacionDB.latitude,
-                        lon: ultimaUbicacionDB.longitude,
-                        accuracy: ultimaUbicacionDB.accuracy,
-                        timestamp: ultimaUbicacionDB.timestamp,
-                        source: ultimaUbicacionDB.source
-                    };
+                    dispositivo.ubicaciones.push(ultimaUbicacionDB);
+                    console.log(`📍 Última ubicación cargada para ${dispositivo.nombre}: ${ultimaUbicacionDB.latitude}, ${ultimaUbicacionDB.longitude}`);
                 }
-            } catch (locationErr) {
-                console.error(`❌ Error cargando última ubicación para ${dispositivoDB.id}:`, locationErr);
+            } catch (error) {
+                console.error(`❌ Error cargando ubicación para dispositivo ${dispositivo.id}:`, error);
             }
             
-            // Usar la estructura correcta {info, ultimaUbicacion}
-            dispositivos.set(dispositivoDB.id, {
-                info: dispositivoInfo,
-                ultimaUbicacion: ultimaUbicacion
-            });
+            dispositivos.set(dispositivo.id, dispositivo);
         }
         
-        console.log(`✅ ${dispositivos.size} dispositivos cargados en memoria`);
-    } catch (err) {
-        console.error('❌ Error cargando dispositivos desde BD:', err);
+        console.log(`✅ ${dispositivos.size} dispositivos cargados con sus ubicaciones`);
+    } catch (error) {
+        console.error('❌ Error cargando dispositivos desde la base de datos:', error);
     }
 }).catch((err) => {
     console.error('❌ Error inicializando base de datos:', err);
@@ -899,135 +1013,54 @@ app.use('*', (req, res) => {
     });
 });
 
-// Iniciar el servidor
+// Iniciar servidor
 server.listen(PORT, '0.0.0.0', async () => {
-    const ipLocal = obtenerIPLocal();
-    const ipPublica = await obtenerIPPublicaAWS();
     console.log('🚀 Servidor GPS Tracking iniciado');
     console.log(`📡 Servidor HTTP en puerto ${PORT}`);
     console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
-    console.log(`🔗 Acceso local: http://localhost${PORT === 80 ? '' : ':' + PORT}`);
-    console.log(`📱 Acceso desde móvil: http://${ipLocal}${PORT === 80 ? '' : ':' + PORT}`);
-    console.log(`🔗 Acceso desde AWS EC2: http://${ipPublica}${PORT === 80 ? '' : ':' + PORT}`);
+    console.log(`🔗 Acceso local: http://localhost:${PORT}`);
+    console.log(`📱 Acceso desde red: http://${SERVER_IP}:${PORT}`);
     
-    // Configuración de LocalTunnel (sin tokens, gratuito y más estable)
-const startLocalTunnel = async () => {
-  try {
-    console.log('🔄 Iniciando túnel LocalTunnel...');
-    
-    // Generar un subdominio basado en el nombre del proyecto para mayor estabilidad
-    const subdomain = 'gps-tracking-' + Math.random().toString(36).substring(2, 8);
-    
-    return new Promise((resolve, reject) => {
-      // Ejecutar LocalTunnel usando npx para mejor compatibilidad
-      const lt = spawn('npx', ['localtunnel', '--port', PORT.toString(), '--subdomain', subdomain], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true
-      });
-      
-      let output = '';
-      let tunnelUrl = '';
-      
-      lt.stdout.on('data', (data) => {
-        output += data.toString();
-        console.log('LocalTunnel output:', data.toString());
-        
-        // Buscar la URL en diferentes formatos posibles
-        const match = output.match(/your url is: (https:\/\/[^\s\n\r]+)/i) || 
-                     output.match(/(https:\/\/[a-z0-9-]+\.loca\.lt)/i);
-        
-        if (match && !tunnelUrl) {
-          tunnelUrl = match[1].trim();
-          console.log(`🌐 Túnel LocalTunnel activo: ${tunnelUrl}`);
-          console.log(`📱 URL para la app Android: ${tunnelUrl}`);
-          
-          // Guardar la URL en un archivo para referencia
-          require('fs').writeFileSync('./tunnel-url.txt', tunnelUrl);
-          
-          resolve(tunnelUrl);
-        }
-      });
-      
-      lt.stderr.on('data', (data) => {
-        console.log('LocalTunnel info:', data.toString());
-      });
-      
-      lt.on('error', (error) => {
-        console.error('❌ Error al inicializar LocalTunnel:', error.message);
-        reject(error);
-      });
-      
-      // Timeout de 15 segundos para obtener la URL
-      setTimeout(() => {
-        if (!tunnelUrl) {
-          reject(new Error('Timeout esperando URL de LocalTunnel'));
-        }
-      }, 15000);
-    });
-    
-  } catch (error) {
-    console.error('❌ Error al inicializar LocalTunnel:', error.message);
-    console.log('⚠️  El servidor continuará sin túnel público');
-    
-    // Alternativas adicionales
-    console.log('\n🔧 Alternativas para acceso público:');
-    console.log('1. Ejecutar manualmente: npx localtunnel --port 3000');
-    console.log('2. Usar Serveo: ssh -R 80:localhost:3000 serveo.net');
-    console.log('3. Configurar port forwarding en tu router');
-    
-    return null;
-  }
-};
-    
-    // Esperar un momento para que el servidor esté completamente listo
-    setTimeout(async () => {
-        // Inicializar LocalTunnel automáticamente después de que el servidor esté corriendo
-        const url = await startLocalTunnel();
-        
-        if (url) {
-            console.log(`🌍 Túnel LocalTunnel público activo: ${url}`);
-            console.log(`🌍 Accesible desde cualquier dispositivo y ubicación`);
-            console.log(`🔗 Sin necesidad de tokens ni configuración adicional`);
-            console.log(`📱 Configura esta URL en tu app Android: ${url}`);
-            console.log('='.repeat(60));
-            console.log('🌐 ESTADO DEL SERVIDOR:');
-            console.log(`   ✅ Servidor GPS: Activo en puerto ${PORT}`);
-            console.log(`   ✅ Túnel LocalTunnel: ${url}`);
-            console.log(`   ✅ WebSocket: Activo`);
-            console.log(`   ✅ Base de datos: Conectada`);
-            console.log(`   ✅ Dispositivos cargados: ${Object.keys(dispositivos).length}`);
-            
-            // Guardar la URL de LocalTunnel para uso posterior
-            global.tunnelUrl = url;
-        } else {
+    // Configurar ngrok automáticamente si está habilitado
+    if (NGROK_ENABLED) {
+        const ngrokUrl = await configurarNgrokAutomatico(PORT);
+        if (ngrokUrl) {
             console.log('='.repeat(60));
             console.log('📱 CONFIGURACIÓN PARA APP ANDROID:');
-            console.log(`   URL del servidor: http://${ipLocal}:${PORT}`);
+            console.log(`   URL del servidor (ngrok): ${ngrokUrl}`);
+            console.log(`   URL del servidor (local): http://${SERVER_IP}:${PORT}`);
             console.log('='.repeat(60));
         }
-    }, 2000); // Esperar 2 segundos para que el servidor esté completamente listo
+    }
     
     console.log('📱 Endpoint para Android: POST /api/ubicacion');
     console.log('🗺️  Endpoint para web: GET /api/ubicacion/ultima');
-    console.log(`🌐 IP Local detectada: ${ipLocal}`);
-    console.log(`🌍 IP Pública AWS detectada: ${ipPublica}`);
+    console.log(`🌐 IP del servidor: ${SERVER_IP}`);
     console.log('');
 });
 
-// Manejar cierre graceful del servidor
+// Manejo graceful del cierre del servidor
 process.on('SIGTERM', async () => {
     console.log('🛑 Cerrando servidor...');
     
     // Cerrar túnel ngrok si está activo
-    try {
-        await ngrok.disconnect();
-        await ngrok.kill();
-        console.log('🌐 Túnel ngrok cerrado');
-    } catch (error) {
-        console.log('⚠️  Error al cerrar ngrok:', error.message);
+    if (global.ngrokUrl && ngrok) {
+        try {
+            await ngrok.disconnect();
+            await ngrok.kill();
+            console.log('🌐 Túnel ngrok cerrado');
+        } catch (error) {
+            console.log('⚠️  Error al cerrar ngrok:', error.message);
+        }
     }
     
     server.close(() => {
         console.log('✅ Servidor cerrado correctamente');
+        process.exit(0);
     });
+});
+
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Recibida señal de interrupción...');
+    process.emit('SIGTERM');
 });
