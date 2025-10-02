@@ -52,6 +52,19 @@ body {
     flex: 1;
     position: relative;
     height: 100%;
+    min-height: 400px;
+    overflow: hidden;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
 
 .info-section {
@@ -391,6 +404,7 @@ body {
     .main-container {
         flex-direction: column;
         height: auto;
+        min-height: 100vh;
     }
     
     .sidebar {
@@ -402,7 +416,13 @@ body {
     .map-container {
         order: 1;
         height: 50vh;
-        min-height: 400px;
+        min-height: 450px;
+        position: relative;
+    }
+    
+    #map {
+        height: 100%;
+        width: 100%;
     }
     
     .info-section {
@@ -450,17 +470,45 @@ body {
         padding: 12px;
         max-height: 250px;
         order: 2;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     
     .map-container {
         order: 1;
-        height: 45vh;
-        min-height: 350px;
+        height: 50vh !important;
+        min-height: 400px !important;
+        max-height: 70vh;
+        width: 100%;
+        position: relative;
+        touch-action: manipulation;
+        overflow: hidden;
     }
     
     #map {
-        height: 100%;
-        width: 100%;
+        height: 100% !important;
+        width: 100% !important;
+        min-height: 400px !important;
+        position: absolute !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Mejorar botones de zoom en móviles */
+    .leaflet-control-zoom {
+        margin-top: 10px !important;
+        margin-right: 10px !important;
+    }
+    
+    .leaflet-control-zoom a {
+        width: 36px !important;
+        height: 36px !important;
+        line-height: 36px !important;
+        font-size: 20px !important;
     }
     
     .panel {
@@ -563,12 +611,21 @@ body {
     }
     
     .map-container {
-        height: 40vh;
-        min-height: 300px;
+        height: 55vh !important;
+        min-height: 350px !important;
+        max-height: 600px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    #map {
+        height: 100% !important;
+        min-height: 350px !important;
+        position: absolute !important;
     }
     
     .sidebar {
-        max-height: 200px;
+        max-height: 180px;
         padding: 8px;
     }
     
@@ -735,5 +792,205 @@ body {
     to {
         transform: translateX(0);
         opacity: 1;
+    }
+}
+
+/* ========================================
+   MEJORAS ESPECÍFICAS PARA DISPOSITIVOS MÓVILES
+   ======================================== */
+
+/* Prevenir selección de texto en elementos interactivos */
+.leaflet-container,
+.btn,
+.device-item {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Mejorar áreas táctiles en móviles */
+@media (max-width: 768px) {
+    .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: calc(100% - 20px);
+    }
+    
+    /* Hacer el mapa más táctil */
+    .leaflet-marker-icon,
+    .leaflet-popup-close-button {
+        touch-action: manipulation;
+    }
+    
+    /* Mejorar tamaño de popups en móviles */
+    .leaflet-popup-content-wrapper {
+        max-width: calc(100vw - 60px) !important;
+    }
+    
+    .leaflet-popup-content {
+        margin: 10px 12px !important;
+        font-size: 13px !important;
+    }
+    
+    /* Mejorar controles del mapa en móviles */
+    .leaflet-bar a {
+        touch-action: manipulation;
+    }
+}
+
+/* Orientación horizontal en móviles */
+@media (max-width: 768px) and (orientation: landscape) {
+    .header {
+        padding: 10px 0;
+    }
+    
+    .header h1 {
+        font-size: 1.2rem;
+    }
+    
+    .header p {
+        display: none;
+    }
+    
+    .main-container {
+        height: calc(100vh - 80px);
+    }
+    
+    .map-container {
+        height: 100%;
+        min-height: 250px;
+    }
+    
+    .sidebar {
+        position: fixed;
+        right: 0;
+        top: 80px;
+        width: 300px;
+        max-height: calc(100vh - 80px);
+        order: 2;
+        z-index: 1000;
+        box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+    }
+    
+    .status-bar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        padding: 8px;
+    }
+    
+    .status-item {
+        font-size: 0.75rem;
+    }
+    
+    .info-section {
+        display: none;
+    }
+}
+
+/* Mejoras para tablets en modo portrait */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+    .map-container {
+        height: 60vh;
+        min-height: 500px;
+    }
+    
+    .sidebar {
+        max-height: 350px;
+    }
+}
+
+/* Mejoras para tablets en modo landscape */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+    .main-container {
+        flex-direction: row;
+        height: calc(100vh - 140px);
+    }
+    
+    .sidebar {
+        width: 280px;
+        max-height: 100%;
+        order: 1;
+    }
+    
+    .map-container {
+        order: 2;
+        height: 100%;
+    }
+}
+
+/* Optimizaciones para rendimiento en móviles */
+@media (max-width: 768px) {
+    * {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    
+    /* Reducir sombras en móviles para mejor rendimiento */
+    .panel,
+    .stat-card,
+    .device-item {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    /* Optimizar transiciones */
+    .btn,
+    .device-item,
+    .filter-input {
+        transition: all 0.15s ease;
+    }
+}
+
+/* Soporte para dispositivos con notch (iPhone X+) */
+@supports (padding: max(0px)) {
+    @media (max-width: 768px) {
+        .header {
+            padding-left: max(12px, env(safe-area-inset-left));
+            padding-right: max(12px, env(safe-area-inset-right));
+            padding-top: max(24px, env(safe-area-inset-top));
+        }
+        
+        .notification {
+            top: max(10px, env(safe-area-inset-top));
+            right: max(10px, env(safe-area-inset-right));
+            left: max(10px, env(safe-area-inset-left));
+        }
+        
+        .sidebar {
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+    }
+}
+
+/* Modo oscuro para dispositivos que lo prefieren */
+@media (prefers-color-scheme: dark) {
+    @media (max-width: 768px) {
+        body {
+            background: #1a1a1a;
+            color: #e5e5e5;
+        }
+        
+        .header {
+            background: #2d2d2d;
+            border-bottom-color: #404040;
+        }
+        
+        .sidebar {
+            background: #2d2d2d;
+            border-right-color: #404040;
+        }
+        
+        .panel {
+            background: #1a1a1a;
+            border: 1px solid #404040;
+        }
+        
+        .filter-input {
+            background: #2d2d2d;
+            border-color: #404040;
+            color: #e5e5e5;
+        }
     }
 }

@@ -98,17 +98,13 @@ async function configurarNgrokAutomatico(puerto) {
                 region: process.env.NGROK_REGION || 'us', // Región configurable
                 bind_tls: true, // Forzar HTTPS
                 inspect: false, // Desactivar interfaz web de ngrok para servidores
-                // Configuraciones para acceso público
+                // Configuraciones para evitar la página de advertencia
                 host_header: 'rewrite', // Reescribir headers del host
                 schemes: ['https'], // Solo HTTPS para mayor seguridad
-                // Permitir acceso desde cualquier origen
-                basic_auth: undefined, // Sin autenticación básica
-                oauth: undefined, // Sin OAuth
-                circuit_breaker: undefined, // Sin circuit breaker
-                compression: true, // Habilitar compresión
-                // Headers personalizados para evitar restricciones
+                // Headers para evitar la página de advertencia de ngrok
                 request_header: {
                     add: [
+                        'ngrok-skip-browser-warning: true',
                         'X-Forwarded-Proto: https',
                         'X-Real-IP: $remote_addr'
                     ]
@@ -137,7 +133,7 @@ async function configurarNgrokAutomatico(puerto) {
             console.log(`🔗 URL para navegadores web: ${url}`);
             
             // Guardar URL para uso global
-            global.ngrokUrl = url;
+            global.tunnelUrl = url;
             
             return url;
             
@@ -1044,7 +1040,7 @@ process.on('SIGTERM', async () => {
     console.log('🛑 Cerrando servidor...');
     
     // Cerrar túnel ngrok si está activo
-    if (global.ngrokUrl && ngrok) {
+    if (global.tunnelUrl && ngrok) {
         try {
             await ngrok.disconnect();
             await ngrok.kill();

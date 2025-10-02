@@ -74,12 +74,26 @@ function initMapFallback() {
         }
         
         // Crear mapa con Leaflet centrado en Cusco, Perú
-        map = L.map('map').setView([-13.53195, -71.967463], 13);
+        // Configuración optimizada para móviles
+        map = L.map('map', {
+            center: [-13.53195, -71.967463],
+            zoom: 13,
+            zoomControl: true,
+            touchZoom: true,
+            scrollWheelZoom: true,
+            doubleClickZoom: true,
+            boxZoom: true,
+            tap: true,
+            tapTolerance: 15,
+            dragging: true,
+            trackResize: true
+        });
         
         // Agregar capa de Google Maps (estilo similar a Google Maps)
         L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
             attribution: '© Google Maps',
             maxZoom: 20,
+            minZoom: 3,
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         }).addTo(map);
         
@@ -90,7 +104,55 @@ function initMapFallback() {
             }
         }, 100);
         
-        console.log('🗺️ Mapa de Leaflet inicializado correctamente');
+        // Agregar listener para redimensionamiento de ventana
+        let resizeTimeout;
+        window.addEventListener('resize', function() {
+            // Usar debounce para evitar múltiples llamadas
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (map && map.invalidateSize) {
+                    console.log('🔄 Redimensionando mapa...');
+                    map.invalidateSize(true);
+                    
+                    // Si hay dispositivos, centrar la vista
+                    if (dispositivos.size > 0) {
+                        const bounds = L.latLngBounds();
+                        dispositivos.forEach(dispositivo => {
+                            if (dispositivo.lat && dispositivo.lon) {
+                                bounds.extend([dispositivo.lat, dispositivo.lon]);
+                            }
+                        });
+                        if (bounds.isValid()) {
+                            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+                        }
+                    }
+                }
+            }, 250);
+        });
+        
+        // Forzar redimensionamiento cuando cambia la orientación
+        window.addEventListener('orientationchange', function() {
+            setTimeout(() => {
+                if (map && map.invalidateSize) {
+                    console.log('🔄 Orientación cambiada, redimensionando mapa...');
+                    map.invalidateSize(true);
+                }
+            }, 300);
+        });
+        
+        // Observar cambios en el tamaño del contenedor del mapa
+        const mapContainer = document.getElementById('map');
+        if (mapContainer && 'ResizeObserver' in window) {
+            const resizeObserver = new ResizeObserver(() => {
+                if (map && map.invalidateSize) {
+                    console.log('� Contenedor del mapa cambió de tamaño, actualizando...');
+                    map.invalidateSize(true);
+                }
+            });
+            resizeObserver.observe(mapContainer);
+        }
+        
+        console.log('�🗺️ Mapa de Leaflet inicializado correctamente');
         window.mapProvider = 'leaflet';
         
         // Marcar que el mapa está listo
@@ -100,6 +162,14 @@ function initMapFallback() {
         setTimeout(() => {
             cargarDatosExistentes();
         }, 500);
+        
+        // Forzar actualización adicional para asegurar que se renderice
+        setTimeout(() => {
+            if (map && map.invalidateSize) {
+                map.invalidateSize(true);
+                console.log('✅ Mapa forzado a redimensionar después de carga');
+            }
+        }, 1000);
         
     } catch (error) {
         console.error('Error inicializando Leaflet:', error);

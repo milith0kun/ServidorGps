@@ -45,7 +45,7 @@ class GpsService : Service() {
     private val httpClient = OkHttpClient()
     
     // Configuración del servidor
-    private val serverUrl = "https://gps-tracking-0etqc0.loca.lt/api/ubicacion"
+    private val serverUrl = "https://kickless-anamaria-nonwaxing.ngrok-free.dev/api/ubicacion"
     
     // Generar ID único y persistente del dispositivo
     private fun getUniqueDeviceId(): String {
