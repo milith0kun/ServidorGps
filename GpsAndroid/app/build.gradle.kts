@@ -10,15 +10,23 @@ android {
 
     defaultConfig {
         applicationId = "com.example.gpsandroid"
-        minSdk = 24
+        minSdk = 21  // Compatibilidad óptima - soporta Android 5.0+ (cubre 95%+ dispositivos)
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+        
+        // Configuración para múltiples arquitecturas
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
+        
+        // Configuración universal
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -28,14 +36,34 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Configuración para APK universal
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            }
+        }
+        debug {
+            // Configuración para APK universal en debug
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            }
+            // Configuración de firma para debug - permite instalación en cualquier dispositivo
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
+    
+    // Configuración para generar APK universal
+    splits {
+        abi {
+            isEnable = false  // Deshabilitamos splits para generar APK universal
+        }
+    }
+    
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8  // Mejor compatibilidad
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "1.8"  // Mejor compatibilidad
     }
     buildFeatures {
         compose = true
@@ -51,40 +79,43 @@ android {
 }
 
 dependencies {
-    // Core Android dependencies
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
+    // Core Android dependencies - versiones optimizadas para API 21+
+    implementation("androidx.core:core-ktx:1.12.0")  // Versión más reciente compatible
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
     
-    // Jetpack Compose BOM
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
+    // Jetpack Compose BOM - versión estable y optimizada
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
     
-    // Material Components for compatibility
-    implementation("com.google.android.material:material:1.10.0")
+    // Material Components para compatibilidad universal
+    implementation("com.google.android.material:material:1.11.0")
     
-    // Location services
+    // Location services - versión más reciente
     implementation("com.google.android.gms:play-services-location:21.0.1")
     
-    // Permission handling
+    // Permission handling - versión optimizada para API 21+
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
     
-    // HTTP client for sending GPS data
+    // HTTP client - versión más reciente y estable
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     
-    // JSON serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+    // JSON serialization - versión más reciente
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+    
+    // Multidex support para dispositivos con limitaciones
+    implementation("androidx.multidex:multidex:2.0.1")
     
     // Testing
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.ui.test.junit4)
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

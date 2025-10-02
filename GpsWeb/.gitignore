@@ -3,7 +3,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 
 # Archivos de entorno
 .env
@@ -12,22 +11,44 @@ package-lock.json
 .env.test.local
 .env.production.local
 
+# Base de datos
+*.db
+*.sqlite
+*.sqlite3
+gps_tracking.db
+database.db
+
 # Logs
-logs
+logs/
 *.log
 
 # Archivos temporales
 *.tmp
 *.temp
+.cache/
 
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # IDEs
 .vscode/
 .idea/
 *.swp
+*.swo
+
+# Archivos de respaldo
+*.bak
+*.backup
+
+# Archivos de ngrok
+ngrok.exe
+ngrok
+
+# Archivos de prueba
+test_*
+prueba_*
 *.swo
 
 # Archivos de datos temporales

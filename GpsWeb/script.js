@@ -867,12 +867,25 @@ async function cargarDatosExistentes() {
 // Funciones de búsqueda y navegación
 async function buscarLugar(query) {
     try {
-        // Usar Nominatim de OpenStreetMap para búsqueda
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`);
+        console.log('🔍 Buscando:', query);
+        
+        // Usar Nominatim de OpenStreetMap para búsqueda con User-Agent
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=pe`, {
+            headers: {
+                'User-Agent': 'GPS-Android-Web-App/1.0 (contact@example.com)'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const results = await response.json();
+        console.log('🗺️ Resultados encontrados:', results.length);
         return results;
     } catch (error) {
-        console.error('Error en búsqueda:', error);
+        console.error('❌ Error en búsqueda:', error);
+        alert('Error al buscar lugar. Por favor, inténtalo de nuevo.');
         return [];
     }
 }
@@ -882,22 +895,39 @@ function mostrarResultadosBusqueda(results) {
     container.innerHTML = '';
     
     if (results.length === 0) {
-        container.innerHTML = '<div style="padding: 10px; text-align: center; color: #6b7280;">No se encontraron resultados</div>';
+        container.innerHTML = '<div style="padding: 10px; text-align: center; color: #6b7280; font-style: italic;">No se encontraron resultados para la búsqueda</div>';
         container.style.display = 'block';
         return;
     }
     
-    results.forEach(result => {
+    console.log('📋 Mostrando', results.length, 'resultados');
+    
+    results.forEach((result, index) => {
         const item = document.createElement('div');
         item.className = 'search-result-item';
+        
+        // Obtener nombre más legible
+        const nombrePrincipal = result.name || result.display_name.split(',')[0];
+        const direccionCompleta = result.display_name;
+        
         item.innerHTML = `
-            <div class="search-result-name">${result.display_name.split(',')[0]}</div>
-            <div class="search-result-address">${result.display_name}</div>
+            <div class="search-result-name">${nombrePrincipal}</div>
+            <div class="search-result-address">${direccionCompleta}</div>
         `;
         
         item.addEventListener('click', () => {
+            console.log('✅ Lugar seleccionado:', nombrePrincipal);
             seleccionarLugar(result);
             container.style.display = 'none';
+        });
+        
+        // Agregar efecto hover
+        item.addEventListener('mouseenter', () => {
+            item.style.backgroundColor = '#f3f4f6';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            item.style.backgroundColor = 'transparent';
         });
         
         container.appendChild(item);
@@ -910,32 +940,46 @@ function seleccionarLugar(lugar) {
     const lat = parseFloat(lugar.lat);
     const lon = parseFloat(lugar.lon);
     
+    console.log('📍 Seleccionando lugar:', lugar.name || lugar.display_name.split(',')[0]);
+    console.log('📍 Coordenadas:', lat, lon);
+    
     // Limpiar marcador anterior
     if (marcadorBusqueda) {
         map.removeLayer(marcadorBusqueda);
     }
     
-    // Crear nuevo marcador
+    // Crear nuevo marcador con icono personalizado
     marcadorBusqueda = L.marker([lat, lon], {
         icon: L.divIcon({
             className: 'search-marker',
-            html: '📍',
-            iconSize: [25, 25],
-            iconAnchor: [12, 25]
+            html: '<div style="background: #dc3545; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📍</div>',
+            iconSize: [24, 24],
+            iconAnchor: [12, 24]
         })
     }).addTo(map);
     
-    marcadorBusqueda.bindPopup(`
-        <div style="font-family: Arial, sans-serif;">
-            <h4 style="margin: 0 0 8px 0; color: #333;">${lugar.display_name.split(',')[0]}</h4>
-            <p style="margin: 4px 0; font-size: 0.875rem; color: #666;">${lugar.display_name}</p>
-            <p style="margin: 4px 0;"><strong>Coordenadas:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}</p>
-            <button onclick="establecerComoDestino('${lugar.display_name.split(',')[0]}', ${lat}, ${lon})" style="margin-top: 8px; padding: 4px 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Usar como destino</button>
-        </div>
-    `);
+    const nombreLugar = lugar.name || lugar.display_name.split(',')[0];
     
-    // Centrar mapa en el lugar
-    map.setView([lat, lon], 15);
+    marcadorBusqueda.bindPopup(`
+        <div style="font-family: Arial, sans-serif; min-width: 200px;">
+            <h4 style="margin: 0 0 8px 0; color: #333; font-size: 14px;">${nombreLugar}</h4>
+            <p style="margin: 4px 0; font-size: 12px; color: #666; line-height: 1.4;">${lugar.display_name}</p>
+            <p style="margin: 4px 0; font-size: 12px;"><strong>Coordenadas:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}</p>
+            <div style="margin-top: 10px; display: flex; gap: 8px;">
+                <button onclick="establecerComoDestino('${nombreLugar.replace(/'/g, "\\'")}', ${lat}, ${lon})" 
+                        style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; flex: 1;">
+                    🎯 Usar como destino
+                </button>
+                <button onclick="copiarCoordenadasLugar(${lat}, ${lon})" 
+                        style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    📋 Copiar
+                </button>
+            </div>
+        </div>
+    `).openPopup();
+    
+    // Centrar mapa en el lugar con zoom apropiado
+    map.setView([lat, lon], 16);
     
     // Limpiar campo de búsqueda
     document.getElementById('searchInput').value = '';
@@ -957,39 +1001,110 @@ function establecerComoDestino(nombre, lat, lon) {
 // Hacer la función global para que funcione desde los popups
 window.establecerComoDestino = establecerComoDestino;
 
+// Función para copiar coordenadas de un lugar específico
+function copiarCoordenadasLugar(lat, lon) {
+    const coords = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    navigator.clipboard.writeText(coords).then(() => {
+        // Mostrar notificación temporal
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        `;
+        notification.textContent = '✓ Coordenadas copiadas al portapapeles';
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 3000);
+    }).catch(err => {
+        console.error('Error copiando coordenadas:', err);
+        alert(`Coordenadas: ${coords}`);
+    });
+}
+
+// Hacer las funciones globales
+window.copiarCoordenadasLugar = copiarCoordenadasLugar;
+
 async function calcularRuta() {
     if (!coordenadasSeleccionadas) {
-        alert('Por favor selecciona un destino primero');
+        alert('Por favor selecciona un destino primero usando la búsqueda');
         return;
     }
     
-    // Obtener ubicación de origen (último dispositivo activo)
+    // Obtener ubicación de origen (último dispositivo activo o más reciente)
     let origen = null;
+    let dispositivoOrigen = null;
+    
+    // Buscar el dispositivo más reciente y visible
     for (const [deviceId, dispositivo] of dispositivos) {
         if (dispositivo.visible && dispositivo.ultimaUbicacion) {
-            origen = dispositivo.ultimaUbicacion;
-            break;
+            if (!origen || dispositivo.ultimaUbicacion.timestamp > origen.timestamp) {
+                origen = dispositivo.ultimaUbicacion;
+                dispositivoOrigen = deviceId;
+            }
         }
     }
     
     if (!origen) {
-        alert('No hay dispositivos activos para calcular la ruta');
+        alert('No hay dispositivos activos para calcular la ruta. Asegúrate de que al menos un dispositivo esté visible y enviando ubicaciones.');
         return;
     }
     
+    console.log('🚗 Calculando ruta desde dispositivo:', dispositivoOrigen);
+    console.log('📍 Origen:', origen.latitude, origen.longitude);
+    console.log('🎯 Destino:', coordenadasSeleccionadas.lat, coordenadasSeleccionadas.lon);
+    
     try {
-        // Usar OSRM para cálculo de rutas
-        const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${origen.longitude},${origen.latitude};${coordenadasSeleccionadas.lon},${coordenadasSeleccionadas.lat}?overview=full&geometries=geojson`);
+        // Mostrar indicador de carga
+        const calcBtn = document.getElementById('calculateRoute');
+        const originalText = calcBtn.textContent;
+        calcBtn.textContent = '⏳ Calculando...';
+        calcBtn.disabled = true;
+        
+        // Usar OSRM para cálculo de rutas con mejor configuración
+        const response = await fetch(
+            `https://router.project-osrm.org/route/v1/driving/${origen.longitude},${origen.latitude};${coordenadasSeleccionadas.lon},${coordenadasSeleccionadas.lat}?overview=full&geometries=geojson&steps=true&alternatives=false`,
+            {
+                headers: {
+                    'User-Agent': 'GPS-Android-Web-App/1.0'
+                }
+            }
+        );
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         if (data.routes && data.routes.length > 0) {
+            console.log('✅ Ruta calculada exitosamente');
             mostrarRuta(data.routes[0]);
         } else {
-            alert('No se pudo calcular la ruta');
+            throw new Error('No se encontró una ruta válida');
         }
+        
+        // Restaurar botón
+        calcBtn.textContent = originalText;
+        calcBtn.disabled = false;
+        
     } catch (error) {
-        console.error('Error calculando ruta:', error);
-        alert('Error al calcular la ruta');
+        console.error('❌ Error calculando ruta:', error);
+        alert(`Error al calcular la ruta: ${error.message}. Verifica que ambos puntos sean accesibles por carretera.`);
+        
+        // Restaurar botón
+        const calcBtn = document.getElementById('calculateRoute');
+        calcBtn.textContent = '🧭 Calcular Ruta';
+        calcBtn.disabled = false;
     }
 }
 
@@ -999,29 +1114,77 @@ function mostrarRuta(ruta) {
         map.removeLayer(rutaActual);
     }
     
+    // Limpiar panel de información anterior
+    const rutaInfoAnterior = document.querySelector('.route-info');
+    if (rutaInfoAnterior) {
+        rutaInfoAnterior.remove();
+    }
+    
     // Crear nueva ruta
     const coordinates = ruta.geometry.coordinates.map(coord => [coord[1], coord[0]]);
     rutaActual = L.polyline(coordinates, {
         color: '#ff6b6b',
-        weight: 4,
-        opacity: 0.8
+        weight: 5,
+        opacity: 0.8,
+        lineJoin: 'round',
+        lineCap: 'round'
     }).addTo(map);
     
-    // Ajustar vista para mostrar toda la ruta
-    map.fitBounds(rutaActual.getBounds(), { padding: [20, 20] });
+    // Agregar animación a la ruta
+    rutaActual.on('add', function() {
+        const pathElement = rutaActual.getElement();
+        if (pathElement) {
+            pathElement.style.strokeDasharray = '10, 5';
+            pathElement.style.animation = 'dash 1s linear infinite';
+        }
+    });
     
-    // Mostrar información de la ruta
+    // Ajustar vista para mostrar toda la ruta con padding
+    map.fitBounds(rutaActual.getBounds(), { 
+        padding: [30, 30],
+        maxZoom: 16 
+    });
+    
+    // Calcular información de la ruta
     const distancia = (ruta.distance / 1000).toFixed(1);
     const duracion = Math.round(ruta.duration / 60);
+    const horas = Math.floor(duracion / 60);
+    const minutos = duracion % 60;
     
-    // Crear panel de información
+    let tiempoTexto;
+    if (horas > 0) {
+        tiempoTexto = `${horas}h ${minutos}min`;
+    } else {
+        tiempoTexto = `${minutos} min`;
+    }
+    
+    // Crear panel de información mejorado
     const routeInfo = document.createElement('div');
     routeInfo.className = 'route-info';
     routeInfo.innerHTML = `
-        <h4>🗺️ Información de Ruta</h4>
-        <p><strong>Distancia:</strong> ${distancia} km</p>
-        <p><strong>Tiempo estimado:</strong> ${duracion} min</p>
-        <p><strong>Destino:</strong> ${coordenadasSeleccionadas.nombre}</p>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <span style="font-size: 18px;">🗺️</span>
+            <h4 style="margin: 0; color: #1f2937;">Información de Ruta</h4>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #059669;">📏</span>
+                <span><strong>Distancia:</strong> ${distancia} km</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #dc2626;">⏱️</span>
+                <span><strong>Tiempo estimado:</strong> ${tiempoTexto}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="color: #7c3aed;">🎯</span>
+                <span><strong>Destino:</strong> ${coordenadasSeleccionadas.nombre}</span>
+            </div>
+        </div>
+        <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+            <button onclick="abrirEnGoogleMaps()" style="width: 100%; padding: 8px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                🗺️ Abrir en Google Maps
+            </button>
+        </div>
     `;
     
     // Agregar al mapa
@@ -1030,29 +1193,140 @@ function mostrarRuta(ruta) {
     // Habilitar botón de limpiar ruta
     document.getElementById('clearRoute').disabled = false;
     
-    console.log(`Ruta calculada: ${distancia} km, ${duracion} min`);
+    console.log(`✅ Ruta mostrada: ${distancia} km, ${tiempoTexto}`);
 }
 
+// Función para abrir en Google Maps
+function abrirEnGoogleMaps() {
+    if (!coordenadasSeleccionadas) return;
+    
+    // Obtener ubicación de origen
+    let origen = null;
+    for (const [deviceId, dispositivo] of dispositivos) {
+        if (dispositivo.visible && dispositivo.ultimaUbicacion) {
+            if (!origen || dispositivo.ultimaUbicacion.timestamp > origen.timestamp) {
+                origen = dispositivo.ultimaUbicacion;
+            }
+        }
+    }
+    
+    if (origen) {
+        const url = `https://www.google.com/maps/dir/${origen.latitude},${origen.longitude}/${coordenadasSeleccionadas.lat},${coordenadasSeleccionadas.lon}`;
+        window.open(url, '_blank');
+    }
+}
+
+// Hacer la función global
+window.abrirEnGoogleMaps = abrirEnGoogleMaps;
+
 function limpiarRuta() {
+    console.log('🧹 Limpiando ruta...');
+    
     // Limpiar ruta del mapa
     if (rutaActual) {
         map.removeLayer(rutaActual);
         rutaActual = null;
+        console.log('✅ Ruta removida del mapa');
     }
     
     // Limpiar panel de información
     const routeInfo = document.querySelector('.route-info');
     if (routeInfo) {
         routeInfo.remove();
+        console.log('✅ Panel de información removido');
     }
     
-    // Limpiar destino
+    // Limpiar marcador de búsqueda si existe
+    if (marcadorBusqueda) {
+        map.removeLayer(marcadorBusqueda);
+        marcadorBusqueda = null;
+        console.log('✅ Marcador de búsqueda removido');
+    }
+    
+    // Limpiar destino y coordenadas
     document.getElementById('routeDestination').value = '';
     coordenadasSeleccionadas = null;
     
-    // Deshabilitar botones
-    document.getElementById('calculateRoute').disabled = true;
-    document.getElementById('clearRoute').disabled = true;
+    // Deshabilitar y actualizar botones
+    const clearBtn = document.getElementById('clearRoute');
+    const calcBtn = document.getElementById('calculateRoute');
+    
+    clearBtn.disabled = true;
+    calcBtn.disabled = true;
+    calcBtn.textContent = '🧭 Calcular Ruta';
+    
+    // Mostrar notificación temporal
+    mostrarNotificacion('🧹 Ruta y marcadores limpiados', 'info');
+    
+    console.log('✅ Limpieza completada');
+}
+
+// Función auxiliar para mostrar notificaciones
+function mostrarNotificacion(mensaje, tipo = 'success') {
+    const notification = document.createElement('div');
+    const backgroundColor = tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6';
+    
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${backgroundColor};
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        z-index: 10001;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        animation: slideInRight 0.3s ease-out;
+        max-width: 300px;
+        word-wrap: break-word;
+    `;
+    
+    notification.textContent = mensaje;
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (document.body.contains(notification)) {
+            notification.style.animation = 'slideOutRight 0.3s ease-in forwards';
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, 3000);
+}
+
+// Agregar estilos para las animaciones si no existen
+if (!document.querySelector('#notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notification-styles';
+    style.textContent = `
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 function configurarEventosClick() {
@@ -1107,8 +1381,18 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('searchButton').addEventListener('click', async function() {
         const query = document.getElementById('searchInput').value.trim();
         if (query) {
-            const results = await buscarLugar(query);
-            mostrarResultadosBusqueda(results);
+            // Mostrar feedback visual
+            this.textContent = '🔍 Buscando...';
+            this.disabled = true;
+            
+            try {
+                const results = await buscarLugar(query);
+                mostrarResultadosBusqueda(results);
+            } finally {
+                // Restaurar botón
+                this.textContent = '🔍 Buscar';
+                this.disabled = false;
+            }
         }
     });
     
@@ -1116,9 +1400,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') {
             const query = this.value.trim();
             if (query) {
-                const results = await buscarLugar(query);
-                mostrarResultadosBusqueda(results);
+                const searchBtn = document.getElementById('searchButton');
+                searchBtn.textContent = '🔍 Buscando...';
+                searchBtn.disabled = true;
+                
+                try {
+                    const results = await buscarLugar(query);
+                    mostrarResultadosBusqueda(results);
+                } finally {
+                    searchBtn.textContent = '🔍 Buscar';
+                    searchBtn.disabled = false;
+                }
             }
+        }
+    });
+    
+    // Limpiar resultados cuando se empieza a escribir una nueva búsqueda
+    document.getElementById('searchInput').addEventListener('input', function() {
+        if (this.value.trim().length === 0) {
+            document.getElementById('searchResults').style.display = 'none';
         }
     });
     

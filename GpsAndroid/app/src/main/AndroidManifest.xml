@@ -19,8 +19,34 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
+    <!-- Características requeridas para máxima compatibilidad -->
+    <uses-feature 
+        android:name="android.hardware.location" 
+        android:required="true" />
+    <uses-feature 
+        android:name="android.hardware.location.gps" 
+        android:required="false" />
+    <uses-feature 
+        android:name="android.hardware.location.network" 
+        android:required="false" />
+    <uses-feature 
+        android:name="android.hardware.wifi" 
+        android:required="false" />
+    <uses-feature 
+        android:name="android.hardware.telephony" 
+        android:required="false" />
+    
+    <!-- Soporte para diferentes tamaños de pantalla -->
+    <supports-screens 
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        android:anyDensity="true" />
 
     <application
+        android:name="androidx.multidex.MultiDexApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -30,11 +56,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.GpsAndroid"
         android:usesCleartextTraffic="true"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.GpsAndroid">
+            android:theme="@style/Theme.GpsAndroid"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

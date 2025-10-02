@@ -1,16 +1,54 @@
+require('dotenv').config();
 const express = require('express');
 const WebSocket = require('ws');
 const cors = require('cors');
 const path = require('path');
 const dbManager = require('./database');
 const moment = require('moment');
+const os = require('os');
+const { spawn } = require('child_process');
+
+// Función para obtener la IP local
+function obtenerIPLocal() {
+    const interfaces = os.networkInterfaces();
+    let ipWiFi = null;
+    let ipOtra = null;
+    
+    for (const interfaceName in interfaces) {
+        const interfaceInfo = interfaces[interfaceName];
+        for (const info of interfaceInfo) {
+            // Buscar IPv4 no loopback y no interna
+            if (info.family === 'IPv4' && !info.internal) {
+                // Priorizar IP de red WiFi (192.168.x.x)
+                if (info.address.startsWith('192.168.')) {
+                    ipWiFi = info.address;
+                }
+                // Guardar otras IPs como respaldo
+                else if (info.address.startsWith('10.') || 
+                        (info.address.startsWith('172.') && 
+                         parseInt(info.address.split('.')[1]) >= 16 && 
+                         parseInt(info.address.split('.')[1]) <= 31)) {
+                    if (!ipOtra) ipOtra = info.address;
+                }
+            }
+        }
+    }
+    
+    // Priorizar IP WiFi, luego otras IPs locales, finalmente localhost
+    return ipWiFi || ipOtra || 'localhost';
+}
 
 // Configuración del servidor
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: '*', // Permitir acceso desde cualquier origen
+    credentials: true, // Permitir credenciales
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
 app.use(express.static(__dirname)); // Servir archivos estáticos desde la raíz del proyecto
 
@@ -791,21 +829,133 @@ app.use('*', (req, res) => {
 });
 
 // Iniciar el servidor
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
+    const ipLocal = obtenerIPLocal();
     console.log('🚀 Servidor GPS Tracking iniciado');
     console.log(`📡 Servidor HTTP en puerto ${PORT}`);
     console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
-    console.log(`🔗 Accede a http://localhost${PORT === 80 ? '' : ':' + PORT} para ver el mapa`);
-    console.log(`🔗 Accede a http://18.188.7.21${PORT === 80 ? '' : ':' + PORT} para acceso desde AWS EC2`);
-    console.log('ðŸ“± Endpoint para Android: POST /api/ubicacion');
-    console.log('ðŸ—ºï¸  Endpoint para web: GET /api/ubicacion/ultima');
-    console.log('ðŸŒ IP PÃºblica AWS: 18.188.7.21');
+    console.log(`🔗 Acceso local: http://localhost${PORT === 80 ? '' : ':' + PORT}`);
+    console.log(`📱 Acceso desde móvil: http://${ipLocal}${PORT === 80 ? '' : ':' + PORT}`);
+    console.log(`🔗 Acceso desde AWS EC2: http://18.188.7.21${PORT === 80 ? '' : ':' + PORT}`);
+    
+    // Configuración de LocalTunnel (sin tokens, gratuito y más estable)
+const startLocalTunnel = async () => {
+  try {
+    console.log('🔄 Iniciando túnel LocalTunnel...');
+    
+    // Generar un subdominio basado en el nombre del proyecto para mayor estabilidad
+    const subdomain = 'gps-tracking-' + Math.random().toString(36).substring(2, 8);
+    
+    return new Promise((resolve, reject) => {
+      // Ejecutar LocalTunnel usando npx para mejor compatibilidad
+      const lt = spawn('npx', ['localtunnel', '--port', PORT.toString(), '--subdomain', subdomain], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true
+      });
+      
+      let output = '';
+      let tunnelUrl = '';
+      
+      lt.stdout.on('data', (data) => {
+        output += data.toString();
+        console.log('LocalTunnel output:', data.toString());
+        
+        // Buscar la URL en diferentes formatos posibles
+        const match = output.match(/your url is: (https:\/\/[^\s\n\r]+)/i) || 
+                     output.match(/(https:\/\/[a-z0-9-]+\.loca\.lt)/i);
+        
+        if (match && !tunnelUrl) {
+          tunnelUrl = match[1].trim();
+          console.log(`🌐 Túnel LocalTunnel activo: ${tunnelUrl}`);
+          console.log(`📱 URL para la app Android: ${tunnelUrl}`);
+          
+          // Guardar la URL en un archivo para referencia
+          require('fs').writeFileSync('./tunnel-url.txt', tunnelUrl);
+          
+          resolve(tunnelUrl);
+        }
+      });
+      
+      lt.stderr.on('data', (data) => {
+        console.log('LocalTunnel info:', data.toString());
+      });
+      
+      lt.on('error', (error) => {
+        console.error('❌ Error al inicializar LocalTunnel:', error.message);
+        reject(error);
+      });
+      
+      // Timeout de 15 segundos para obtener la URL
+      setTimeout(() => {
+        if (!tunnelUrl) {
+          reject(new Error('Timeout esperando URL de LocalTunnel'));
+        }
+      }, 15000);
+    });
+    
+  } catch (error) {
+    console.error('❌ Error al inicializar LocalTunnel:', error.message);
+    console.log('⚠️  El servidor continuará sin túnel público');
+    
+    // Alternativas adicionales
+    console.log('\n🔧 Alternativas para acceso público:');
+    console.log('1. Ejecutar manualmente: npx localtunnel --port 3000');
+    console.log('2. Usar Serveo: ssh -R 80:localhost:3000 serveo.net');
+    console.log('3. Configurar port forwarding en tu router');
+    
+    return null;
+  }
+};
+    
+    // Esperar un momento para que el servidor esté completamente listo
+    setTimeout(async () => {
+        // Inicializar LocalTunnel automáticamente después de que el servidor esté corriendo
+        const url = await startLocalTunnel();
+        
+        if (url) {
+            console.log(`🌍 Túnel LocalTunnel público activo: ${url}`);
+            console.log(`🌍 Accesible desde cualquier dispositivo y ubicación`);
+            console.log(`🔗 Sin necesidad de tokens ni configuración adicional`);
+            console.log(`📱 Configura esta URL en tu app Android: ${url}`);
+            console.log('='.repeat(60));
+            console.log('🌐 ESTADO DEL SERVIDOR:');
+            console.log(`   ✅ Servidor GPS: Activo en puerto ${PORT}`);
+            console.log(`   ✅ Túnel LocalTunnel: ${url}`);
+            console.log(`   ✅ WebSocket: Activo`);
+            console.log(`   ✅ Base de datos: Conectada`);
+            console.log(`   ✅ Dispositivos cargados: ${Object.keys(dispositivos).length}`);
+            
+            // Guardar la URL de LocalTunnel para uso posterior
+            global.tunnelUrl = url;
+        } else {
+            console.log('='.repeat(60));
+            console.log('📱 CONFIGURACIÓN PARA APP ANDROID:');
+            console.log(`   URL del servidor: http://${ipLocal}:${PORT}`);
+            console.log('='.repeat(60));
+        }
+    }, 2000); // Esperar 2 segundos para que el servidor esté completamente listo
+    
+    console.log('📱 Endpoint para Android: POST /api/ubicacion');
+    console.log('🗺️  Endpoint para web: GET /api/ubicacion/ultima');
+    console.log(`🌐 IP Local detectada: ${ipLocal}`);
+    console.log('🌍 IP Pública AWS: 18.188.7.21');
+    console.log('');
 });
 
 // Manejar cierre graceful del servidor
-process.on('SIGTERM', () => {
-    console.log('ðŸ›‘ Cerrando servidor...');
+process.on('SIGTERM', async () => {
+    console.log('🛑 Cerrando servidor...');
+    
+    // Cerrar túnel ngrok si está activo
+    try {
+        await ngrok.disconnect();
+        await ngrok.kill();
+        console.log('🌐 Túnel ngrok cerrado');
+    } catch (error) {
+        console.log('⚠️  Error al cerrar ngrok:', error.message);
+    }
+    
     server.close(() => {
-        console.log('âœ… Servidor cerrado correctamente');
+        console.log('✅ Servidor cerrado correctamente');
     });
 });

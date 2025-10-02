@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
     
     // Cliente HTTP para enviar datos al servidor
     private val httpClient = OkHttpClient()
-    private val serverUrl = "http://localhost:3001/api/ubicacion" // Localhost con port forwarding ADB
+    private val serverUrl = "https://kickless-anamaria-nonwaxing.ngrok-free.dev/api/ubicacion" // URL del túnel ngrok
     
     // Generar ID único y persistente del dispositivo
     private fun getUniqueDeviceId(): String {
@@ -919,6 +919,9 @@ class MainActivity : ComponentActivity() {
     
     override fun onResume() {
         super.onResume()
+        // Verificar permisos cada vez que la aplicación regresa al primer plano
+        // Esto es importante porque el usuario puede haber cambiado los permisos desde configuración
+        verificarPermisos()
         if (tienePermisos) {
             verificarGpsYComenzarActualizaciones()
         }

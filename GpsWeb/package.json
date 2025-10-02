@@ -1,29 +1,39 @@
 {
-"name": "gps-tracking-server",
-"version": "1.0.0",
-"description": "Servidor backend para tracking GPS en tiempo real",
-"main": "server.js",
-"scripts": {
-"start": "node server.js",
-"dev": "nodemon server.js"
-},
-"keywords": [
-"gps",
-"tracking",
-"websocket",
-"express",
-"real-time"
-],
-"author": "Edmil Jampier Saire Bustamante",
-"license": "MIT",
-"dependencies": {
-"express": "^4.18.2",
-"ws": "^8.14.2",
-"cors": "^2.8.5",
-"sqlite3": "^5.1.6",
-"moment": "^2.29.4"
-},
-"devDependencies": {
-"nodemon": "^3.0.1"
-}
+  "name": "gps-tracking-server",
+  "version": "1.0.0",
+  "description": "Servidor backend para tracking GPS en tiempo real - Compatible con local y AWS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:aws": "node server-aws.js",
+    "dev": "nodemon server.js",
+    "dev:aws": "nodemon server-aws.js",
+    "deploy:aws": "node aws-deploy.js",
+    "health": "node health-check.js",
+    "test:connection": "curl -X POST http://localhost:3000/api/ubicacion -H 'Content-Type: application/json' -d '{\"deviceId\":\"test\",\"lat\":40.7128,\"lon\":-74.0060,\"accuracy\":10}'"
+  },
+  "keywords": [
+    "gps",
+    "tracking",
+    "websocket",
+    "express",
+    "real-time",
+    "ngrok",
+    "aws",
+    "ubuntu"
+  ],
+  "author": "Edmil Jampier Saire Bustamante",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "moment": "^2.29.4",
+    "ngrok": "^5.0.0-beta.2",
+    "sqlite3": "^5.1.6",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
 }
