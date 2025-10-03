@@ -16,7 +16,7 @@ let contadorColores = 0;
 // Variables para trayectorias en tiempo real
 let trayectorias = new Map(); // Almacena polylines de trayectorias por deviceId
 let puntosHistoricos = new Map(); // Almacena puntos GPS por deviceId para dibujar trayectoria
-let maxPuntosTrayectoria = 500; // Máximo de puntos a mantener en memoria
+let maxPuntosTrayectoria = 1000; // Máximo de puntos a mantener en memoria (aumentado para más historial)
 
 // Variables para filtro de suavizado de trayectorias (corrección de recorrido)
 let puntosRawBuffer = new Map(); // Buffer de puntos sin procesar por dispositivo
@@ -619,7 +619,7 @@ function actualizarTrayectoria(deviceId, latitude, longitude) {
     // Agregar punto SUAVIZADO/CORREGIDO a la trayectoria
     puntos.push([puntoCorregido.lat, puntoCorregido.lon]);
     
-    // Limitar cantidad de puntos para no saturar memoria
+    // Limitar cantidad de puntos para no saturar memoria (mantener últimos 1000)
     if (puntos.length > maxPuntosTrayectoria) {
         puntos.shift(); // Eliminar el punto más antiguo
     }
@@ -640,10 +640,11 @@ function actualizarTrayectoria(deviceId, latitude, longitude) {
         
         trayectorias.set(deviceId, trayectoria);
         
-        console.log(`🛤️ Trayectoria creada para ${deviceId} con ${puntos.length} puntos (suavizado activo)`);
+        console.log(`🛤️ Trayectoria en tiempo real creada para ${deviceId} con ${puntos.length} puntos (incluye historial)`);
     } else if (trayectoria) {
-        // Actualizar polyline existente con puntos corregidos
+        // Actualizar polyline existente agregando el nuevo punto
         trayectoria.setLatLngs(puntos);
+        // console.log(`📈 Trayectoria actualizada para ${deviceId}: ${puntos.length} puntos totales`); // Comentado para reducir logs
     }
 }
 
@@ -1275,8 +1276,8 @@ async function cargarHistorialUbicaciones() {
     try {
         console.log('📜 Cargando historial de ubicaciones...');
         
-        // Obtener últimas 100 ubicaciones de cada dispositivo
-        const response = await fetch('/api/ubicaciones/historial?limit=100');
+        // Obtener últimas 500 ubicaciones de cada dispositivo para mostrar más recorrido
+        const response = await fetch('/api/ubicaciones/historial?limit=500');
         if (!response.ok) {
             console.warn('⚠️ No se pudo cargar historial de ubicaciones');
             return;
@@ -1313,7 +1314,7 @@ async function cargarHistorialUbicaciones() {
                         puntos.push([ub.latitude, ub.longitude]);
                     }
                     
-                    // Guardar en puntosHistoricos
+                    // Guardar en puntosHistoricos (base del historial)
                     puntosHistoricos.set(deviceId, puntos);
                     
                     // Crear trayectoria si no existe
@@ -1328,7 +1329,8 @@ async function cargarHistorialUbicaciones() {
                         }).addTo(map);
                         
                         trayectorias.set(deviceId, trayectoria);
-                        console.log(`✅ Trayectoria histórica creada para ${deviceId}`);
+                        console.log(`✅ Trayectoria histórica creada para ${deviceId} con ${puntos.length} puntos desde BD`);
+                        console.log(`📈 Nuevos puntos en tiempo real se agregarán a esta trayectoria`);
                     }
                 }
             }
