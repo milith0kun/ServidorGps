@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .retryOnConnectionFailure(true) // Reintentar automáticamente en caso de fallo
         .build()
-    private val serverUrl = "https://gps-tracking-edmil.loca.lt/api/ubicacion" // URL del túnel Localtunnel
+    private val serverUrl = "http://3.19.26.146/api/ubicacion" // Acceso directo por IP pública de AWS
     
     // Generar ID único y persistente del dispositivo
     private fun getUniqueDeviceId(): String {

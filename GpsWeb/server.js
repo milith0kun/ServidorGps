@@ -8,12 +8,33 @@ const moment = require('moment');
 const os = require('os');
 const { spawn } = require('child_process');
 
-// Importar ngrok solo si está disponible
-let ngrok = null;
-try {
-    ngrok = require('ngrok');
-} catch (error) {
-    console.log('⚠️  ngrok no está disponible, continuando sin túnel público');
+// No se usa ngrok - acceso directo por IP pública de AWS
+
+/**
+ * Función para obtener la IP pública del servidor AWS
+ */
+async function obtenerIPPublica() {
+    try {
+        // Intentar obtener desde variable de entorno primero
+        if (process.env.SERVER_IP) {
+            return process.env.SERVER_IP;
+        }
+        
+        // Obtener IP pública desde servicio externo
+        const https = require('https');
+        return new Promise((resolve, reject) => {
+            https.get('https://api.ipify.org', (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => resolve(data));
+            }).on('error', (err) => {
+                console.log('⚠️  No se pudo obtener IP pública, usando localhost');
+                resolve('localhost');
+            });
+        });
+    } catch (error) {
+        return 'localhost';
+    }
 }
 
 /**
@@ -159,7 +180,6 @@ async function configurarNgrokAutomatico(puerto) {
 const app = express();
 const PORT = process.env.PORT || 80;
 const SERVER_IP = process.env.SERVER_IP || obtenerIPLocal();
-const NGROK_ENABLED = process.env.NGROK_ENABLED !== 'false';
 
 // Middleware
 app.use(cors({
@@ -1070,17 +1090,19 @@ app.get('/api/stats', async (req, res) => {
 app.get('/api/server-info', async (req, res) => {
     try {
         const ipLocal = obtenerIPLocal();
-        const ipPublica = await obtenerIPPublicaAWS();
+        const ipPublica = global.serverPublicIP || await obtenerIPPublica();
+        const urlBase = PORT === 80 ? `http://${ipPublica}` : `http://${ipPublica}:${PORT}`;
         
         const serverInfo = {
             ipLocal: ipLocal,
             ipPublica: ipPublica,
             puerto: PORT,
+            urlBase: urlBase,
             servidor: 'GPS Tracking Server',
-            version: '1.0.0',
+            version: '2.0.0',
             timestamp: new Date().toISOString(),
             dispositivos: dispositivos.size,
-            tunnelUrl: global.tunnelUrl || null // URL dinámica del túnel
+            accesoDirecto: true // Sin túnel, acceso directo por IP
         };
         
         console.log('📊 Información del servidor solicitada:', serverInfo);
@@ -1158,40 +1180,34 @@ server.listen(PORT, '0.0.0.0', async () => {
     console.log(`📡 Servidor HTTP en puerto ${PORT}`);
     console.log(`🌐 WebSocket Server activo en puerto ${PORT}`);
     console.log(`🔗 Acceso local: http://localhost:${PORT}`);
-    console.log(`📱 Acceso desde red: http://${SERVER_IP}:${PORT}`);
     
-    // Configurar ngrok automáticamente si está habilitado
-    if (NGROK_ENABLED) {
-        const ngrokUrl = await configurarNgrokAutomatico(PORT);
-        if (ngrokUrl) {
-            console.log('='.repeat(60));
-            console.log('📱 CONFIGURACIÓN PARA APP ANDROID:');
-            console.log(`   URL del servidor (ngrok): ${ngrokUrl}`);
-            console.log(`   URL del servidor (local): http://${SERVER_IP}:${PORT}`);
-            console.log('='.repeat(60));
-        }
-    }
+    // Obtener IP pública
+    const ipPublica = await obtenerIPPublica();
+    global.serverPublicIP = ipPublica;
     
-    console.log('📱 Endpoint para Android: POST /api/ubicacion');
-    console.log('🗺️  Endpoint para web: GET /api/ubicacion/ultima');
-    console.log(`🌐 IP del servidor: ${SERVER_IP}`);
+    const urlBase = PORT === 80 ? `http://${ipPublica}` : `http://${ipPublica}:${PORT}`;
+    
+    console.log('='.repeat(60));
+    console.log('📱 CONFIGURACIÓN PARA APP ANDROID:');
+    console.log(`   URL del servidor: ${urlBase}/api/ubicacion`);
+    console.log(`   IP Pública: ${ipPublica}`);
+    console.log(`   Puerto: ${PORT}`);
+    console.log('='.repeat(60));
+    console.log('🌐 ACCESO WEB:');
+    console.log(`   Navegador: ${urlBase}`);
+    console.log('='.repeat(60));
+    
+    console.log('📱 Endpoints disponibles:');
+    console.log(`   POST ${urlBase}/api/ubicacion - Enviar ubicación desde Android`);
+    console.log(`   GET  ${urlBase}/api/ubicacion/ultima - Obtener última ubicación`);
+    console.log(`   GET  ${urlBase}/api/dispositivos - Listar dispositivos`);
+    console.log(`   GET  ${urlBase} - Interfaz web de mapas`);
     console.log('');
 });
 
 // Manejo graceful del cierre del servidor
 process.on('SIGTERM', async () => {
     console.log('🛑 Cerrando servidor...');
-    
-    // Cerrar túnel ngrok si está activo
-    if (global.tunnelUrl && ngrok) {
-        try {
-            await ngrok.disconnect();
-            await ngrok.kill();
-            console.log('🌐 Túnel ngrok cerrado');
-        } catch (error) {
-            console.log('⚠️  Error al cerrar ngrok:', error.message);
-        }
-    }
     
     server.close(() => {
         console.log('✅ Servidor cerrado correctamente');

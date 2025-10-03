@@ -50,7 +50,7 @@ class GpsService : Service() {
         .build()
     
     // Configuración del servidor
-    private val serverUrl = "https://gps-tracking-edmil.loca.lt/api/ubicacion"
+    private val serverUrl = "http://3.19.26.146/api/ubicacion" // Acceso directo por IP pública de AWS
     
     // Generar ID único y persistente del dispositivo
     private fun getUniqueDeviceId(): String {
