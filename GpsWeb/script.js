@@ -225,7 +225,7 @@ function conectarWebSocket() {
         ws.onmessage = function(event) {
             try {
                 const mensaje = JSON.parse(event.data);
-                // console.log('📍 Mensaje recibido:', mensaje); // Comentado para mejor rendimiento
+                console.log('📍 Mensaje WebSocket recibido:', mensaje.tipo || 'sin tipo', mensaje.datos ? 'con datos' : 'sin datos');
                 
                 if (modoTiempoReal && mensaje.datos && mensaje.datos.ubicacion) {
                     // Extraer datos de ubicación del formato del servidor
@@ -301,8 +301,20 @@ function actualizarUbicacion(data) {
     
     // Validar y procesar timestamp
     let timestampValido = timestamp;
-    if (!timestampValido || isNaN(timestampValido)) {
-        console.warn('⚠️ Timestamp inválido, usando timestamp actual');
+    
+    // Si el timestamp es un string ISO (desde BD), convertir a milisegundos
+    if (typeof timestampValido === 'string') {
+        try {
+            timestampValido = new Date(timestampValido).getTime();
+        } catch (error) {
+            console.warn('⚠️ Error parseando timestamp:', timestamp);
+            timestampValido = Date.now();
+        }
+    }
+    
+    // Validar que sea un número válido
+    if (!timestampValido || isNaN(timestampValido) || timestampValido < 1000000000000) {
+        console.warn('⚠️ Timestamp inválido:', timestamp, 'usando timestamp actual');
         timestampValido = Date.now();
     }
     
@@ -702,13 +714,19 @@ function verificarDispositivosInactivos() {
     const dispositivosEliminados = [];
     
     dispositivos.forEach((dispositivo, deviceId) => {
-        const tiempoInactivo = ahora - dispositivo.ultimaActividad;
-        
-        // Si el dispositivo lleva más de 30 segundos sin enviar señal
-        if (tiempoInactivo > timeoutInactividad && dispositivo.activo) {
-            console.log(`⚠️ Dispositivo ${deviceId} inactivo (${Math.round(tiempoInactivo/1000)}s sin señal)`);
-            desactivarDispositivo(deviceId);
+        // Solo verificar inactividad si el dispositivo tiene ultimaActividad establecida
+        // (significa que ha enviado al menos un dato en esta sesión)
+        if (dispositivo.ultimaActividad) {
+            const tiempoInactivo = ahora - dispositivo.ultimaActividad;
+            
+            // Si el dispositivo lleva más de 60 segundos sin enviar señal
+            if (tiempoInactivo > timeoutInactividad && dispositivo.activo) {
+                console.log(`⚠️ Dispositivo ${deviceId} inactivo (${Math.round(tiempoInactivo/1000)}s sin señal)`);
+                desactivarDispositivo(deviceId);
+            }
         }
+        // Si no tiene ultimaActividad, es un dispositivo histórico (solo desde BD)
+        // NO lo desactivamos, simplemente lo mostramos en el mapa
     });
 }
 
@@ -1212,13 +1230,19 @@ async function cargarDatosExistentes() {
                     if (dispositivo.ultimaUbicacion) {
                         console.log(`📍 Cargando ubicación para ${dispositivo.id}:`, dispositivo.ultimaUbicacion);
                         
+                        // Procesar timestamp desde BD (puede ser string ISO)
+                        let timestampUbicacion = dispositivo.ultimaUbicacion.timestamp;
+                        if (typeof timestampUbicacion === 'string') {
+                            timestampUbicacion = new Date(timestampUbicacion).getTime();
+                        }
+                        
                         // Crear datos de ubicación para mostrar en el mapa
                         const datosUbicacion = {
                             deviceId: dispositivo.id,
                             latitude: dispositivo.ultimaUbicacion.lat,
                             longitude: dispositivo.ultimaUbicacion.lon,
                             accuracy: dispositivo.ultimaUbicacion.accuracy || 5.0,
-                            timestamp: dispositivo.ultimaUbicacion.timestamp,
+                            timestamp: timestampUbicacion,
                             source: 'database'
                         };
                         
@@ -1282,12 +1306,11 @@ async function cargarHistorialUbicaciones() {
                     // Ordenar por timestamp (más antiguo primero)
                     ubicaciones.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                     
-                    // Agregar puntos al historial
+                    // Agregar puntos al historial SIN filtro Kalman (ya filtrados en Android)
                     const puntos = [];
                     for (const ub of ubicaciones) {
-                        // Aplicar suavizado al cargar historial
-                        const puntoSuavizado = aplicarSuavizadoGPS(deviceId, ub.latitude, ub.longitude);
-                        puntos.push([puntoSuavizado.lat, puntoSuavizado.lon]);
+                        // NO aplicar suavizado al cargar historial - ya está filtrado
+                        puntos.push([ub.latitude, ub.longitude]);
                     }
                     
                     // Guardar en puntosHistoricos
