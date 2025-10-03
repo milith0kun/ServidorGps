@@ -13,10 +13,10 @@ let dispositivosVisibles = new Set(); // Dispositivos actualmente visibles
 let coloresDispositivos = ['#234971ff', '#18642aff', '#b46870ff', '#ffdc74ff', '#5c3f92ff', '#fd7e14', '#20c997', '#e83e8c'];
 let contadorColores = 0;
 
-// Variables para trayectorias en tiempo real
+// Variables para trayectorias en tiempo real (solo datos nuevos desde que se abre la página)
 let trayectorias = new Map(); // Almacena polylines de trayectorias por deviceId
 let puntosHistoricos = new Map(); // Almacena puntos GPS por deviceId para dibujar trayectoria
-let maxPuntosTrayectoria = 1000; // Máximo de puntos a mantener en memoria (aumentado para más historial)
+let maxPuntosTrayectoria = 500; // Máximo de puntos en memoria para trayectoria en tiempo real
 
 // Variables para filtro de suavizado de trayectorias (corrección de recorrido)
 let puntosRawBuffer = new Map(); // Buffer de puntos sin procesar por dispositivo
@@ -1024,7 +1024,7 @@ function mostrarRutaHistorica(deviceId, ubicaciones) {
     }
 }
 
-// Función para limpiar el mapa
+// Función para limpiar el mapa completo
 function limpiarMapa() {
     // Limpiar marcadores de tiempo real
     marcadores.forEach(marcador => {
@@ -1058,6 +1058,29 @@ function limpiarMapa() {
     // Limpiar buffers de suavizado
     puntosRawBuffer.clear();
     ultimoPuntoSuavizado.clear();
+}
+
+// Función para limpiar solo trayectorias (mantener marcadores y dispositivos)
+function limpiarTrayectorias() {
+    console.log('🧹 Limpiando trayectorias...');
+    
+    // Limpiar trayectorias del mapa
+    trayectorias.forEach((trayectoria, deviceId) => {
+        if (map.hasLayer(trayectoria)) {
+            map.removeLayer(trayectoria);
+        }
+    });
+    
+    // Limpiar datos de trayectorias
+    trayectorias.clear();
+    puntosHistoricos.clear();
+    
+    // Limpiar buffers de suavizado para reiniciar el filtro
+    puntosRawBuffer.clear();
+    ultimoPuntoSuavizado.clear();
+    
+    console.log('✅ Trayectorias limpiadas. Nuevos recorridos comenzarán desde cero.');
+    mostrarNotificacion('🧹 Trayectorias limpiadas correctamente', 'success');
 }
 
 // Función para limpiar ruta histórica específica
@@ -1262,9 +1285,10 @@ async function cargarDatosExistentes() {
         }
         
         console.log('✅ Datos existentes cargados correctamente');
+        console.log('📍 Trayectorias comenzarán cuando lleguen datos en tiempo real');
         
-        // Cargar historial de ubicaciones para mostrar trayectorias completas
-        await cargarHistorialUbicaciones();
+        // NO cargar historial - solo mostrar trayectorias de datos nuevos
+        // await cargarHistorialUbicaciones();
         
     } catch (error) {
         console.error('❌ Error cargando datos existentes:', error);
@@ -1884,6 +1908,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar eventos de botones
     document.getElementById('toggleAll').addEventListener('click', toggleTodosDispositivos);
     document.getElementById('centerAll').addEventListener('click', centrarEnTodos);
+    document.getElementById('clearTrajectories').addEventListener('click', limpiarTrayectorias);
     
     // Configurar eventos de búsqueda y navegación
     document.getElementById('searchButton').addEventListener('click', async function() {

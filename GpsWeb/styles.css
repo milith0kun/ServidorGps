@@ -138,6 +138,7 @@ body {
 
 .device-controls {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 15px;
 }
@@ -168,6 +169,16 @@ body {
 
 .btn-secondary:hover {
     background: #545b62;
+}
+
+.btn-warning {
+    background: #ffc107;
+    color: #000;
+    font-weight: 600;
+}
+
+.btn-warning:hover {
+    background: #e0a800;
 }
 
 .device-list {
