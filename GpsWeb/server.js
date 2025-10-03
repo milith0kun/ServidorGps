@@ -157,7 +157,7 @@ async function configurarNgrokAutomatico(puerto) {
 
 // Configuración del servidor
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 const SERVER_IP = process.env.SERVER_IP || obtenerIPLocal();
 const NGROK_ENABLED = process.env.NGROK_ENABLED !== 'false';
 
@@ -773,7 +773,7 @@ app.get('/api/ubicaciones', (req, res) => {
 // Endpoint para obtener ubicaciones por rango de fechas
 app.get('/api/ubicaciones/historial', async (req, res) => {
     try {
-        const { deviceId, fechaInicio, fechaFin, limite } = req.query;
+        const { deviceId, fechaInicio, fechaFin, limit } = req.query;
         
         if (!dbManager.isReady()) {
             return res.status(503).json({
@@ -781,10 +781,43 @@ app.get('/api/ubicaciones/historial', async (req, res) => {
             });
         }
         
-        // Validar parámetros
+        // Si solo se pide 'limit', devolver las últimas N ubicaciones (modo simple)
+        if (limit && !fechaInicio && !fechaFin) {
+            const db = dbManager.getDatabase();
+            const limitNum = parseInt(limit) || 100;
+            
+            let query;
+            let params;
+            
+            if (deviceId) {
+                query = `
+                    SELECT * FROM locations 
+                    WHERE device_id = ? 
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                `;
+                params = [deviceId, limitNum];
+            } else {
+                query = `
+                    SELECT * FROM locations 
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                `;
+                params = [limitNum];
+            }
+            
+            const ubicaciones = db.prepare(query).all(...params);
+            
+            return res.json({
+                ubicaciones: ubicaciones.reverse(), // Invertir para orden cronológico
+                total: ubicaciones.length
+            });
+        }
+        
+        // Validar parámetros para modo con fechas
         if (!fechaInicio || !fechaFin) {
             return res.status(400).json({
-                error: 'Se requieren fechaInicio y fechaFin (formato: YYYY-MM-DD HH:mm:ss)'
+                error: 'Se requieren fechaInicio y fechaFin (formato: YYYY-MM-DD HH:mm:ss) o solo limit para últimas ubicaciones'
             });
         }
         

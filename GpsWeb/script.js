@@ -26,7 +26,7 @@ const umbralDistanciaMinima = 1.0; // Metros - ignorar cambios menores a 1 metro
 const umbralDistanciaMaxima = 100.0; // Metros - rechazar saltos mayores a 100m entre puntos consecutivos
 
 // Variables para detección de dispositivos inactivos
-let timeoutInactividad = 10000; // 10 segundos sin señal = dispositivo inactivo
+let timeoutInactividad = 60000; // 60 segundos sin señal = dispositivo inactivo
 let verificadorInactividad = null; // Intervalo de verificación
 
 // Variables para rutas históricas
@@ -779,12 +779,12 @@ function iniciarVerificacionInactividad() {
         clearInterval(verificadorInactividad);
     }
     
-    // Verificar cada 5 segundos
+    // Verificar cada 10 segundos
     verificadorInactividad = setInterval(() => {
         verificarDispositivosInactivos();
-    }, 5000);
+    }, 10000);
     
-    console.log('🔍 Verificación de inactividad iniciada (cada 5s, timeout: 30s)');
+    console.log(`🔍 Verificación de inactividad iniciada (cada 10s, timeout: ${timeoutInactividad/1000}s)`);
 }
 
 // Función para centrar la vista en todos los dispositivos
@@ -1206,8 +1206,81 @@ async function cargarDatosExistentes() {
         }
         
         console.log('✅ Datos existentes cargados correctamente');
+        
+        // Cargar historial de ubicaciones para mostrar trayectorias completas
+        await cargarHistorialUbicaciones();
+        
     } catch (error) {
         console.error('❌ Error cargando datos existentes:', error);
+    }
+}
+
+// Función para cargar historial completo de ubicaciones y dibujar trayectorias
+async function cargarHistorialUbicaciones() {
+    try {
+        console.log('📜 Cargando historial de ubicaciones...');
+        
+        // Obtener últimas 100 ubicaciones de cada dispositivo
+        const response = await fetch('/api/ubicaciones/historial?limit=100');
+        if (!response.ok) {
+            console.warn('⚠️ No se pudo cargar historial de ubicaciones');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.ubicaciones && data.ubicaciones.length > 0) {
+            console.log(`📍 Historial cargado: ${data.ubicaciones.length} ubicaciones`);
+            
+            // Agrupar ubicaciones por dispositivo
+            const ubicacionesPorDispositivo = new Map();
+            
+            for (const ubicacion of data.ubicaciones) {
+                if (!ubicacionesPorDispositivo.has(ubicacion.device_id)) {
+                    ubicacionesPorDispositivo.set(ubicacion.device_id, []);
+                }
+                ubicacionesPorDispositivo.get(ubicacion.device_id).push(ubicacion);
+            }
+            
+            // Dibujar trayectorias para cada dispositivo
+            for (const [deviceId, ubicaciones] of ubicacionesPorDispositivo) {
+                const dispositivo = dispositivos.get(deviceId);
+                if (dispositivo && ubicaciones.length >= 2) {
+                    console.log(`🛤️ Dibujando trayectoria histórica para ${deviceId}: ${ubicaciones.length} puntos`);
+                    
+                    // Ordenar por timestamp (más antiguo primero)
+                    ubicaciones.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    
+                    // Agregar puntos al historial
+                    const puntos = [];
+                    for (const ub of ubicaciones) {
+                        // Aplicar suavizado al cargar historial
+                        const puntoSuavizado = aplicarSuavizadoGPS(deviceId, ub.latitude, ub.longitude);
+                        puntos.push([puntoSuavizado.lat, puntoSuavizado.lon]);
+                    }
+                    
+                    // Guardar en puntosHistoricos
+                    puntosHistoricos.set(deviceId, puntos);
+                    
+                    // Crear trayectoria si no existe
+                    if (!trayectorias.has(deviceId) && dispositivo.visible) {
+                        const trayectoria = L.polyline(puntos, {
+                            color: dispositivo.color,
+                            weight: 4,
+                            opacity: 0.8,
+                            smoothFactor: 2.0,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(map);
+                        
+                        trayectorias.set(deviceId, trayectoria);
+                        console.log(`✅ Trayectoria histórica creada para ${deviceId}`);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error cargando historial de ubicaciones:', error);
     }
 }
 
