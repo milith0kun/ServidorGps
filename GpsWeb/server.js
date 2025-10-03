@@ -191,29 +191,40 @@ dbManager.initialize().then(async () => {
         
         // Cargar cada dispositivo y su última ubicación
         for (const dispositivo_db of dispositivos_db) {
-            const dispositivo = {
+            const dispositivoInfo = {
                 id: dispositivo_db.id,
                 nombre: dispositivo_db.name,
                 userAgent: dispositivo_db.user_agent,
-                color: coloresDispositivos[dispositivos.size % coloresDispositivos.length],
-                fechaCreacion: dispositivo_db.created_at,
-                fechaActualizacion: dispositivo_db.updated_at,
-                totalUbicaciones: dispositivo_db.total_locations || 0,
-                ubicaciones: []
+                color: dispositivo_db.color || coloresDispositivos[dispositivos.size % coloresDispositivos.length],
+                creado: dispositivo_db.created_at,
+                activo: true
             };
+            
+            let ultimaUbicacion = null;
             
             // Cargar última ubicación conocida
             try {
                 const ultimaUbicacionDB = await dbManager.getLastLocation(dispositivo_db.id);
                 if (ultimaUbicacionDB) {
-                    dispositivo.ubicaciones.push(ultimaUbicacionDB);
-                    console.log(`📍 Última ubicación cargada para ${dispositivo.nombre}: ${ultimaUbicacionDB.latitude}, ${ultimaUbicacionDB.longitude}`);
+                    ultimaUbicacion = {
+                        lat: ultimaUbicacionDB.latitude,
+                        lon: ultimaUbicacionDB.longitude,
+                        accuracy: ultimaUbicacionDB.accuracy,
+                        timestamp: ultimaUbicacionDB.timestamp,
+                        deviceId: dispositivo_db.id,
+                        source: ultimaUbicacionDB.source || 'android_app'
+                    };
+                    console.log(`📍 Última ubicación cargada para ${dispositivoInfo.nombre}: ${ultimaUbicacion.lat}, ${ultimaUbicacion.lon}`);
                 }
             } catch (error) {
-                console.error(`❌ Error cargando ubicación para dispositivo ${dispositivo.id}:`, error);
+                console.error(`❌ Error cargando ubicación para dispositivo ${dispositivo_db.id}:`, error);
             }
             
-            dispositivos.set(dispositivo.id, dispositivo);
+            // Guardar con estructura consistente {info, ultimaUbicacion}
+            dispositivos.set(dispositivo_db.id, {
+                info: dispositivoInfo,
+                ultimaUbicacion: ultimaUbicacion
+            });
         }
         
         console.log(`✅ ${dispositivos.size} dispositivos cargados con sus ubicaciones`);
@@ -813,34 +824,42 @@ app.get('/api/ubicaciones/historial', async (req, res) => {
         
         // Si solo se pide 'limit', devolver las últimas N ubicaciones (modo simple)
         if (limit && !fechaInicio && !fechaFin) {
-            const db = dbManager.getDatabase();
             const limitNum = parseInt(limit) || 100;
             
-            let query;
-            let params;
-            
-            if (deviceId) {
-                query = `
-                    SELECT * FROM locations 
-                    WHERE device_id = ? 
-                    ORDER BY timestamp DESC 
-                    LIMIT ?
-                `;
-                params = [deviceId, limitNum];
-            } else {
-                query = `
-                    SELECT * FROM locations 
-                    ORDER BY timestamp DESC 
-                    LIMIT ?
-                `;
-                params = [limitNum];
-            }
-            
-            const ubicaciones = db.prepare(query).all(...params);
-            
-            return res.json({
-                ubicaciones: ubicaciones.reverse(), // Invertir para orden cronológico
-                total: ubicaciones.length
+            return new Promise((resolve, reject) => {
+                let query;
+                let params;
+                
+                if (deviceId) {
+                    query = `
+                        SELECT * FROM locations 
+                        WHERE device_id = ? 
+                        ORDER BY timestamp DESC 
+                        LIMIT ?
+                    `;
+                    params = [deviceId, limitNum];
+                } else {
+                    query = `
+                        SELECT * FROM locations 
+                        ORDER BY timestamp DESC 
+                        LIMIT ?
+                    `;
+                    params = [limitNum];
+                }
+                
+                dbManager.db.all(query, params, (err, ubicaciones) => {
+                    if (err) {
+                        console.error('❌ Error obteniendo historial:', err);
+                        return res.status(500).json({
+                            error: 'Error al obtener historial de ubicaciones'
+                        });
+                    }
+                    
+                    res.json({
+                        ubicaciones: ubicaciones.reverse(), // Invertir para orden cronológico
+                        total: ubicaciones.length
+                    });
+                });
             });
         }
         
