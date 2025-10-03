@@ -225,7 +225,7 @@ function conectarWebSocket() {
         ws.onmessage = function(event) {
             try {
                 const mensaje = JSON.parse(event.data);
-                console.log('📍 Mensaje recibido:', mensaje);
+                // console.log('📍 Mensaje recibido:', mensaje); // Comentado para mejor rendimiento
                 
                 if (modoTiempoReal && mensaje.datos && mensaje.datos.ubicacion) {
                     // Extraer datos de ubicación del formato del servidor
@@ -248,8 +248,8 @@ function conectarWebSocket() {
                         timestamp = Date.now();
                     }
                     
-                    console.log('🕐 Timestamp original:', ubicacion.timestamp, 'Tipo:', typeof ubicacion.timestamp);
-                    console.log('🕐 Timestamp procesado:', timestamp, 'Fecha:', new Date(timestamp).toLocaleString('es-ES'));
+                    // console.log('🕐 Timestamp original:', ubicacion.timestamp, 'Tipo:', typeof ubicacion.timestamp);
+                    // console.log('🕐 Timestamp procesado:', timestamp, 'Fecha:', new Date(timestamp).toLocaleString('es-ES'));
                     
                     const datosFormateados = {
                         deviceId: ubicacion.deviceId,
@@ -259,7 +259,7 @@ function conectarWebSocket() {
                         timestamp: timestamp
                     };
                     
-                    console.log('📍 Datos formateados:', datosFormateados);
+                    // console.log('📍 Datos formateados:', datosFormateados);
                     actualizarUbicacion(datosFormateados);
                 }
                 
@@ -317,7 +317,7 @@ function actualizarUbicacion(data) {
         second: '2-digit'
     });
     
-    console.log('🕐 Actualizando ubicación - Timestamp:', timestampValido, 'Fecha formateada:', fechaFormateada);
+    // console.log('🕐 Actualizando ubicación - Timestamp:', timestampValido, 'Fecha formateada:', fechaFormateada);
     
     // Actualizar contadores
     totalUpdates++;
@@ -570,7 +570,7 @@ function aplicarSuavizadoGPS(deviceId, latitud, longitud) {
     const puntoSuavizado = { lat: latSuavizada, lon: lonSuavizada };
     ultimoPuntoSuavizado.set(deviceId, puntoSuavizado);
     
-    console.log(`🎯 Punto suavizado: (${latitud.toFixed(6)}, ${longitud.toFixed(6)}) → (${latSuavizada.toFixed(6)}, ${lonSuavizada.toFixed(6)})`);
+    // console.log(`🎯 Punto suavizado: (${latitud.toFixed(6)}, ${longitud.toFixed(6)}) → (${latSuavizada.toFixed(6)}, ${lonSuavizada.toFixed(6)})`); // Comentado para mejor rendimiento
     
     return puntoSuavizado;
 }
@@ -705,14 +705,23 @@ function desactivarDispositivo(deviceId) {
     
     dispositivo.activo = false;
     
-    // Ocultar del mapa
+    // Ocultar marcador y círculo, PERO MANTENER LA TRAYECTORIA visible
     const marcador = marcadores.get(deviceId);
     const circulo = circulos.get(deviceId);
     const trayectoria = trayectorias.get(deviceId);
     
     if (marcador) map.removeLayer(marcador);
     if (circulo) map.removeLayer(circulo);
-    if (trayectoria) map.removeLayer(trayectoria);
+    
+    // MANTENER la trayectoria visible para ver el recorrido histórico
+    // Solo cambiar su apariencia para indicar que está inactivo
+    if (trayectoria) {
+        trayectoria.setStyle({
+            opacity: 0.5, // Más transparente
+            weight: 3,     // Más delgada
+            dashArray: '5, 10' // Línea punteada para indicar inactividad
+        });
+    }
     
     // Actualizar UI
     const deviceElement = document.getElementById(`device-${deviceId}`);
@@ -746,7 +755,19 @@ function reactivarDispositivo(deviceId) {
         
         if (marcador) marcador.addTo(map);
         if (circulo) circulo.addTo(map);
-        if (trayectoria) trayectoria.addTo(map);
+        
+        // Restaurar estilo normal de la trayectoria
+        if (trayectoria) {
+            trayectoria.setStyle({
+                color: dispositivo.color,
+                weight: 4,
+                opacity: 0.8,
+                dashArray: null, // Quitar línea punteada
+                smoothFactor: 2.0,
+                lineCap: 'round',
+                lineJoin: 'round'
+            });
+        }
     }
     
     // Actualizar UI
