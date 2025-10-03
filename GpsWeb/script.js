@@ -326,7 +326,8 @@ function actualizarUbicacion(data) {
     // Actualizar estadísticas en la interfaz
     document.getElementById('totalUpdates').textContent = totalUpdates;
     document.getElementById('avgAccuracy').textContent = `${(accuracySum / totalUpdates).toFixed(1)}m`;
-    document.getElementById('activeDevices').textContent = dispositivos.size;
+    // Contar solo dispositivos activos
+    actualizarContadorActivos();
     document.getElementById('lastUpdate').textContent = fechaFormateada;
     
     // Actualizar información del dispositivo
@@ -344,6 +345,9 @@ function actualizarUbicacion(data) {
         
         // Crear elemento en la lista de dispositivos
         crearElementoDispositivo(deviceId, color);
+        
+        console.log(`✅ Nuevo dispositivo detectado y agregado: ${deviceId}`);
+        actualizarContadorActivos(); // Actualizar contador inmediatamente
     } else {
         // Actualizar ubicación existente
         const dispositivo = dispositivos.get(deviceId);
