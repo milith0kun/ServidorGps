@@ -828,7 +828,13 @@ function actualizarContadorActivos() {
 }
 
 // Función para iniciar verificación periódica de dispositivos inactivos
+// DESACTIVADA: Los dispositivos NO se desconectan automáticamente
 function iniciarVerificacionInactividad() {
+    console.log('ℹ️ Verificación de inactividad automática DESACTIVADA');
+    console.log('✅ Los dispositivos permanecerán activos indefinidamente');
+    
+    // Sistema comentado - no verificar inactividad
+    /*
     if (verificadorInactividad) {
         clearInterval(verificadorInactividad);
     }
@@ -839,6 +845,7 @@ function iniciarVerificacionInactividad() {
     }, 10000);
     
     console.log(`🔍 Verificación de inactividad iniciada (cada 10s, timeout: ${timeoutInactividad/1000}s)`);
+    */
 }
 
 // Función para centrar la vista en todos los dispositivos
@@ -1963,8 +1970,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Conectar WebSocket
     conectarWebSocket();
     
-    // Iniciar verificación de dispositivos inactivos
-    iniciarVerificacionInactividad();
+    // Sistema de verificación de inactividad DESACTIVADO
+    // Los dispositivos NO se desconectan automáticamente
+    // iniciarVerificacionInactividad();
+    console.log('ℹ️ Sistema de desconexión automática por inactividad DESACTIVADO');
     
     // Actualizar información del servidor dinámicamente
     actualizarInfoServidor();
