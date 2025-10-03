@@ -343,16 +343,18 @@ function actualizarUbicacion(data) {
         });
         dispositivosVisibles.add(deviceId);
         
-        // Crear elemento en la lista de dispositivos
+        // Crear elemento en la lista de dispositivos (verifica duplicados internamente)
         crearElementoDispositivo(deviceId, color);
         
-        console.log(`✅ Nuevo dispositivo detectado y agregado: ${deviceId}`);
+        console.log(`✅ Nuevo dispositivo detectado: ${deviceId} (Total en Map: ${dispositivos.size})`);
         actualizarContadorActivos(); // Actualizar contador inmediatamente
     } else {
         // Actualizar ubicación existente
         const dispositivo = dispositivos.get(deviceId);
         dispositivo.ultimaUbicacion = { latitude, longitude, accuracy, timestamp: timestampValido };
         dispositivo.ultimaActividad = Date.now(); // Actualizar última actividad
+        
+        // console.log(`🔄 Ubicación actualizada para dispositivo existente: ${deviceId}`);
         
         // Si estaba inactivo, reactivarlo
         if (!dispositivo.activo) {
@@ -374,6 +376,13 @@ function actualizarUbicacion(data) {
 // Función para crear elemento de dispositivo en la lista
 function crearElementoDispositivo(deviceId, color) {
     const deviceList = document.getElementById('deviceList');
+    
+    // Verificar si el elemento ya existe para evitar duplicados
+    const elementoExistente = document.getElementById(`device-${deviceId}`);
+    if (elementoExistente) {
+        console.log(`⚠️ Elemento de dispositivo ${deviceId} ya existe, no se creará duplicado`);
+        return;
+    }
     
     const deviceElement = document.createElement('div');
     deviceElement.className = 'device-item';
@@ -397,6 +406,7 @@ function crearElementoDispositivo(deviceId, color) {
     });
     
     deviceList.appendChild(deviceElement);
+    console.log(`✅ Elemento de interfaz creado para dispositivo: ${deviceId}`);
 }
 
 // Función para actualizar marcador de dispositivo
@@ -1189,7 +1199,7 @@ async function cargarDatosExistentes() {
         
         console.log('📊 Cargando datos existentes de la base de datos...');
         
-        // Obtener dispositivos existentes
+        // Obtener dispositivos existentes con sus ubicaciones
         const responseDispositivos = await fetch('/api/dispositivos');
         if (responseDispositivos.ok) {
             const dispositivosData = await responseDispositivos.json();
@@ -1197,30 +1207,26 @@ async function cargarDatosExistentes() {
             
             // Verificar que existan dispositivos
             if (dispositivosData.dispositivos && dispositivosData.dispositivos.length > 0) {
-                // Cargar cada dispositivo
+                // Cargar cada dispositivo desde la respuesta (ya incluye ultimaUbicacion)
                 for (const dispositivo of dispositivosData.dispositivos) {
-                // Obtener la última ubicación de cada dispositivo
-                const responseUbicacion = await fetch(`/api/dispositivos/${dispositivo.id}`);
-                if (responseUbicacion.ok) {
-                    const ubicacionData = await responseUbicacion.json();
-                    if (ubicacionData.ultimaUbicacion) {
-                        console.log(`📍 Cargando ubicación para ${dispositivo.id}:`, ubicacionData.ultimaUbicacion);
+                    if (dispositivo.ultimaUbicacion) {
+                        console.log(`📍 Cargando ubicación para ${dispositivo.id}:`, dispositivo.ultimaUbicacion);
                         
-                        // Simular datos de ubicación para mostrar en el mapa
+                        // Crear datos de ubicación para mostrar en el mapa
                         const datosUbicacion = {
                             deviceId: dispositivo.id,
-                            latitude: ubicacionData.ultimaUbicacion.lat,
-                            longitude: ubicacionData.ultimaUbicacion.lon,
-                            accuracy: ubicacionData.ultimaUbicacion.accuracy || 5.0,
-                            timestamp: ubicacionData.ultimaUbicacion.timestamp,
+                            latitude: dispositivo.ultimaUbicacion.lat,
+                            longitude: dispositivo.ultimaUbicacion.lon,
+                            accuracy: dispositivo.ultimaUbicacion.accuracy || 5.0,
+                            timestamp: dispositivo.ultimaUbicacion.timestamp,
                             source: 'database'
                         };
                         
                         // Actualizar la ubicación en el mapa
                         actualizarUbicacion(datosUbicacion);
+                    } else {
+                        console.warn(`⚠️ Dispositivo ${dispositivo.id} no tiene ubicación registrada`);
                     }
-                }
-                
                 }
                 
                 // Centrar el mapa en todos los dispositivos si hay datos
