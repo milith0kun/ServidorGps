@@ -92,6 +92,16 @@ class MainActivity : ComponentActivity() {
     private var calculandoRuta by mutableStateOf(false)
     private var rutaCalculada by mutableStateOf<RutaInfo?>(null)
     
+    // Variables para filtro Kalman simplificado (suavizado de GPS)
+    private var latitudSuavizada: Double = 0.0
+    private var longitudSuavizada: Double = 0.0
+    private var primeraUbicacion: Boolean = true
+    private val factorSuavizado: Float = 0.3f // Factor de suavizado (0.0 = más suave, 1.0 = sin filtro)
+    
+    // Buffer para promedio móvil
+    private val bufferUbicaciones = mutableListOf<Pair<Double, Double>>()
+    private val tamanoBufferMax = 3 // Promedio de últimas 3 ubicaciones
+    
     // Cliente HTTP para enviar datos al servidor
     private val httpClient = OkHttpClient()
     private val serverUrl = "https://gps-tracking-edmil.loca.lt/api/ubicacion" // URL del túnel Localtunnel
@@ -143,8 +153,16 @@ class MainActivity : ComponentActivity() {
                 locationResult.lastLocation?.let { location ->
                     // Filtrar ubicaciones incoherentes
                     if (esUbicacionValida(location)) {
-                        latitud = String.format("%.6f", location.latitude)
-                        longitud = String.format("%.6f", location.longitude)
+                        // Aplicar suavizado GPS para corregir ruido y mejorar precisión del recorrido
+                        val (latSuavizada, lonSuavizada) = aplicarSuavizadoGPS(
+                            location.latitude, 
+                            location.longitude, 
+                            location.accuracy
+                        )
+                        
+                        // Mostrar coordenadas suavizadas en UI
+                        latitud = String.format("%.6f", latSuavizada)
+                        longitud = String.format("%.6f", lonSuavizada)
                         precision = String.format("%.1f metros", location.accuracy)
                         
                         val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
@@ -154,10 +172,10 @@ class MainActivity : ComponentActivity() {
                         ultimaUbicacionValida = location
                         ultimoTiempoUbicacion = System.currentTimeMillis()
                         
-                        // Enviar datos GPS al servidor
-                        enviarDatosGpsAlServidor(location)
+                        // Enviar datos GPS SUAVIZADOS al servidor para recorrido preciso
+                        enviarDatosGpsAlServidor(location, latSuavizada, lonSuavizada)
                         
-                        Log.d("GPS_SENDER", "Ubicación válida enviada: ${location.latitude}, ${location.longitude}, precisión: ${location.accuracy}m")
+                        Log.d("GPS_SENDER", "Ubicación suavizada enviada: $latSuavizada, $lonSuavizada (original: ${location.latitude}, ${location.longitude}), precisión: ${location.accuracy}m")
                     } else {
                         Log.d("GPS_SENDER", "Ubicación rechazada por filtros de validación")
                     }
@@ -788,6 +806,50 @@ class MainActivity : ComponentActivity() {
     private var ultimoTiempoUbicacion: Long = 0
     private val PRECISION_MAXIMA = 50.0f // Máxima precisión aceptable en metros
     private val VELOCIDAD_MAXIMA = 55.5f // Velocidad máxima aceptable en m/s (200 km/h)
+    
+    /**
+     * Aplica filtro de suavizado a las coordenadas GPS para reducir ruido y mejorar precisión del recorrido.
+     * Combina filtro Kalman simplificado con promedio móvil.
+     */
+    private fun aplicarSuavizadoGPS(latitud: Double, longitud: Double, accuracy: Float): Pair<Double, Double> {
+        // Si es la primera ubicación, inicializar
+        if (primeraUbicacion) {
+            latitudSuavizada = latitud
+            longitudSuavizada = longitud
+            primeraUbicacion = false
+            bufferUbicaciones.clear()
+            bufferUbicaciones.add(Pair(latitud, longitud))
+            return Pair(latitud, longitud)
+        }
+        
+        // Calcular ganancia Kalman basada en la precisión (accuracy)
+        // Menor accuracy (mejor precisión) = mayor confianza en la nueva medición
+        val gananciaKalman = if (accuracy < 10.0f) {
+            0.7f // Alta precisión, confiar más en la nueva medición
+        } else if (accuracy < 20.0f) {
+            0.5f // Precisión media
+        } else {
+            0.3f // Baja precisión, confiar más en el valor suavizado anterior
+        }
+        
+        // Aplicar filtro Kalman simplificado
+        latitudSuavizada = latitudSuavizada + gananciaKalman * (latitud - latitudSuavizada)
+        longitudSuavizada = longitudSuavizada + gananciaKalman * (longitud - longitudSuavizada)
+        
+        // Agregar al buffer para promedio móvil
+        bufferUbicaciones.add(Pair(latitudSuavizada, longitudSuavizada))
+        if (bufferUbicaciones.size > tamanoBufferMax) {
+            bufferUbicaciones.removeAt(0)
+        }
+        
+        // Calcular promedio móvil del buffer
+        val promedioLat = bufferUbicaciones.map { it.first }.average()
+        val promedioLon = bufferUbicaciones.map { it.second }.average()
+        
+        Log.d("GPS_FILTER", "Original: ($latitud, $longitud) -> Suavizado: ($promedioLat, $promedioLon), Accuracy: ${accuracy}m")
+        
+        return Pair(promedioLat, promedioLon)
+    }
     private val DISTANCIA_MAXIMA_SALTO = 1000.0f // Máxima distancia de salto en metros
     
     /**
@@ -864,9 +926,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             
-            // Verificar movimientos muy pequeños (ruido GPS)
-            if (distancia < 1.0 && tiempoTranscurrido < 5) {
-                Log.w("GPS_VALIDATION", "Ubicación rechazada: movimiento muy pequeño (ruido GPS)")
+            // Permitir movimientos pequeños para tracking preciso
+            // Solo rechazar si es EXACTAMENTE la misma ubicación (ruido GPS puro)
+            if (distancia < 0.5 && tiempoTranscurrido < 2) {
+                Log.w("GPS_VALIDATION", "Ubicación rechazada: posible ruido GPS (${distancia}m)")
                 return false
             }
         }
@@ -877,7 +940,7 @@ class MainActivity : ComponentActivity() {
         return true
     }
     
-    private fun enviarDatosGpsAlServidor(location: android.location.Location) {
+    private fun enviarDatosGpsAlServidor(location: android.location.Location, latitudSuavizada: Double, longitudSuavizada: Double) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
@@ -886,8 +949,8 @@ class MainActivity : ComponentActivity() {
                 val gpsData = GpsData(
                     deviceId = deviceId,
                     deviceName = deviceName,
-                    lat = location.latitude,
-                    lon = location.longitude,
+                    lat = latitudSuavizada, // Usar coordenadas suavizadas
+                    lon = longitudSuavizada, // Usar coordenadas suavizadas
                     accuracy = location.accuracy,
                     timestamp = formatter.format(Date())
                 )

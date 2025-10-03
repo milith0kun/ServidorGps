@@ -10,13 +10,24 @@ let dispositivos = new Map(); // Almacena información de dispositivos
 let marcadores = new Map(); // Almacena marcadores por deviceId
 let circulos = new Map(); // Almacena círculos de precisión por deviceId
 let dispositivosVisibles = new Set(); // Dispositivos actualmente visibles
-let coloresDispositivos = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
+let coloresDispositivos = ['#234971ff', '#18642aff', '#b46870ff', '#ffdc74ff', '#5c3f92ff', '#fd7e14', '#20c997', '#e83e8c'];
 let contadorColores = 0;
 
 // Variables para trayectorias en tiempo real
 let trayectorias = new Map(); // Almacena polylines de trayectorias por deviceId
 let puntosHistoricos = new Map(); // Almacena puntos GPS por deviceId para dibujar trayectoria
 let maxPuntosTrayectoria = 500; // Máximo de puntos a mantener en memoria
+
+// Variables para filtro de suavizado de trayectorias (corrección de recorrido)
+let puntosRawBuffer = new Map(); // Buffer de puntos sin procesar por dispositivo
+let ultimoPuntoSuavizado = new Map(); // Último punto suavizado por dispositivo
+const maxBufferSuavizado = 5; // Puntos a considerar para suavizado
+const umbralDistanciaMinima = 1.0; // Metros - ignorar cambios menores a 1 metro (ruido GPS)
+const umbralDistanciaMaxima = 100.0; // Metros - rechazar saltos mayores a 100m entre puntos consecutivos
+
+// Variables para detección de dispositivos inactivos
+let timeoutInactividad = 10000; // 10 segundos sin señal = dispositivo inactivo
+let verificadorInactividad = null; // Intervalo de verificación
 
 // Variables para rutas históricas
 let rutasHistoricas = new Map(); // Almacena rutas históricas por deviceId
@@ -325,7 +336,9 @@ function actualizarUbicacion(data) {
             id: deviceId,
             color: color,
             ultimaUbicacion: { latitude, longitude, accuracy, timestamp: timestampValido },
-            visible: true
+            ultimaActividad: Date.now(), // Timestamp de última señal recibida
+            visible: true,
+            activo: true
         });
         dispositivosVisibles.add(deviceId);
         
@@ -335,6 +348,13 @@ function actualizarUbicacion(data) {
         // Actualizar ubicación existente
         const dispositivo = dispositivos.get(deviceId);
         dispositivo.ultimaUbicacion = { latitude, longitude, accuracy, timestamp: timestampValido };
+        dispositivo.ultimaActividad = Date.now(); // Actualizar última actividad
+        
+        // Si estaba inactivo, reactivarlo
+        if (!dispositivo.activo) {
+            dispositivo.activo = true;
+            reactivarDispositivo(deviceId);
+        }
     }
     
     // Actualizar marcador en el mapa
@@ -469,14 +489,99 @@ function actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, 
         `);
     }
     
-    // Actualizar trayectoria del dispositivo
+    // Actualizar trayectoria del dispositivo con suavizado
     actualizarTrayectoria(deviceId, latitude, longitude);
 }
 
-// Función para actualizar y dibujar la trayectoria del dispositivo
+/**
+ * Calcula la distancia entre dos puntos GPS en metros (fórmula de Haversine)
+ */
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Radio de la Tierra en metros
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+    
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    
+    return R * c; // Distancia en metros
+}
+
+/**
+ * Aplica suavizado a un punto GPS para reducir ruido y mejorar la trayectoria
+ * Usa promedio móvil ponderado con rechazo de outliers
+ */
+function aplicarSuavizadoGPS(deviceId, latitud, longitud) {
+    // Inicializar buffer si no existe
+    if (!puntosRawBuffer.has(deviceId)) {
+        puntosRawBuffer.set(deviceId, []);
+        ultimoPuntoSuavizado.set(deviceId, { lat: latitud, lon: longitud });
+        return { lat: latitud, lon: longitud };
+    }
+    
+    const buffer = puntosRawBuffer.get(deviceId);
+    const ultimoSuavizado = ultimoPuntoSuavizado.get(deviceId);
+    
+    // Verificar si el nuevo punto es válido
+    if (buffer.length > 0) {
+        const ultimoPunto = buffer[buffer.length - 1];
+        const distancia = calcularDistancia(ultimoPunto.lat, ultimoPunto.lon, latitud, longitud);
+        
+        // Rechazar puntos con saltos muy grandes (probables errores GPS)
+        if (distancia > umbralDistanciaMaxima) {
+            console.warn(`⚠️ Punto rechazado: salto de ${distancia.toFixed(1)}m (max: ${umbralDistanciaMaxima}m)`);
+            return ultimoSuavizado; // Devolver el último punto válido
+        }
+        
+        // Ignorar cambios muy pequeños (ruido GPS estacionario)
+        if (distancia < umbralDistanciaMinima) {
+            console.log(`🔹 Ruido GPS ignorado: ${distancia.toFixed(2)}m`);
+            return ultimoSuavizado;
+        }
+    }
+    
+    // Agregar punto al buffer
+    buffer.push({ lat: latitud, lon: longitud, timestamp: Date.now() });
+    
+    // Mantener solo los últimos N puntos
+    if (buffer.length > maxBufferSuavizado) {
+        buffer.shift();
+    }
+    
+    // Calcular promedio móvil ponderado
+    // Los puntos más recientes tienen más peso
+    let sumaLat = 0, sumaLon = 0, sumaPesos = 0;
+    
+    for (let i = 0; i < buffer.length; i++) {
+        const peso = i + 1; // Peso creciente (1, 2, 3, 4, 5...)
+        sumaLat += buffer[i].lat * peso;
+        sumaLon += buffer[i].lon * peso;
+        sumaPesos += peso;
+    }
+    
+    const latSuavizada = sumaLat / sumaPesos;
+    const lonSuavizada = sumaLon / sumaPesos;
+    
+    // Guardar punto suavizado
+    const puntoSuavizado = { lat: latSuavizada, lon: lonSuavizada };
+    ultimoPuntoSuavizado.set(deviceId, puntoSuavizado);
+    
+    console.log(`🎯 Punto suavizado: (${latitud.toFixed(6)}, ${longitud.toFixed(6)}) → (${latSuavizada.toFixed(6)}, ${lonSuavizada.toFixed(6)})`);
+    
+    return puntoSuavizado;
+}
+
+// Función para actualizar y dibujar la trayectoria del dispositivo con suavizado
 function actualizarTrayectoria(deviceId, latitude, longitude) {
     const dispositivo = dispositivos.get(deviceId);
     if (!dispositivo || !dispositivo.visible) return;
+    
+    // Aplicar algoritmo de suavizado para corregir ruido GPS y mejorar recorrido
+    const puntoCorregido = aplicarSuavizadoGPS(deviceId, latitude, longitude);
     
     // Obtener o inicializar array de puntos históricos
     if (!puntosHistoricos.has(deviceId)) {
@@ -485,8 +590,8 @@ function actualizarTrayectoria(deviceId, latitude, longitude) {
     
     const puntos = puntosHistoricos.get(deviceId);
     
-    // Agregar nuevo punto
-    puntos.push([latitude, longitude]);
+    // Agregar punto SUAVIZADO/CORREGIDO a la trayectoria
+    puntos.push([puntoCorregido.lat, puntoCorregido.lon]);
     
     // Limitar cantidad de puntos para no saturar memoria
     if (puntos.length > maxPuntosTrayectoria) {
@@ -497,19 +602,21 @@ function actualizarTrayectoria(deviceId, latitude, longitude) {
     let trayectoria = trayectorias.get(deviceId);
     
     if (!trayectoria && puntos.length >= 2) {
-        // Crear nueva polyline
+        // Crear nueva polyline con suavizado de Leaflet
         trayectoria = L.polyline(puntos, {
             color: dispositivo.color,
-            weight: 3,
-            opacity: 0.7,
-            smoothFactor: 1
+            weight: 4, // Línea más gruesa para mejor visibilidad
+            opacity: 0.8,
+            smoothFactor: 2.0, // Suavizado adicional de Leaflet
+            lineCap: 'round',
+            lineJoin: 'round'
         }).addTo(map);
         
         trayectorias.set(deviceId, trayectoria);
         
-        console.log(`🛤️ Trayectoria creada para ${deviceId} con ${puntos.length} puntos`);
+        console.log(`🛤️ Trayectoria creada para ${deviceId} con ${puntos.length} puntos (suavizado activo)`);
     } else if (trayectoria) {
-        // Actualizar polyline existente
+        // Actualizar polyline existente con puntos corregidos
         trayectoria.setLatLngs(puntos);
     }
 }
@@ -573,6 +680,111 @@ function toggleTodosDispositivos() {
     });
     
     btn.textContent = mostrarTodos ? 'Ocultar Todos' : 'Mostrar Todos';
+}
+
+// Función para verificar dispositivos inactivos
+function verificarDispositivosInactivos() {
+    const ahora = Date.now();
+    const dispositivosEliminados = [];
+    
+    dispositivos.forEach((dispositivo, deviceId) => {
+        const tiempoInactivo = ahora - dispositivo.ultimaActividad;
+        
+        // Si el dispositivo lleva más de 30 segundos sin enviar señal
+        if (tiempoInactivo > timeoutInactividad && dispositivo.activo) {
+            console.log(`⚠️ Dispositivo ${deviceId} inactivo (${Math.round(tiempoInactivo/1000)}s sin señal)`);
+            desactivarDispositivo(deviceId);
+        }
+    });
+}
+
+// Función para desactivar un dispositivo inactivo
+function desactivarDispositivo(deviceId) {
+    const dispositivo = dispositivos.get(deviceId);
+    if (!dispositivo) return;
+    
+    dispositivo.activo = false;
+    
+    // Ocultar del mapa
+    const marcador = marcadores.get(deviceId);
+    const circulo = circulos.get(deviceId);
+    const trayectoria = trayectorias.get(deviceId);
+    
+    if (marcador) map.removeLayer(marcador);
+    if (circulo) map.removeLayer(circulo);
+    if (trayectoria) map.removeLayer(trayectoria);
+    
+    // Actualizar UI
+    const deviceElement = document.getElementById(`device-${deviceId}`);
+    if (deviceElement) {
+        const statusElement = deviceElement.querySelector('.device-status');
+        if (statusElement) {
+            statusElement.textContent = 'Sin señal';
+            statusElement.style.color = '#dc3545';
+        }
+        deviceElement.style.opacity = '0.5';
+    }
+    
+    // Actualizar contador de dispositivos activos
+    actualizarContadorActivos();
+    
+    console.log(`❌ Dispositivo ${deviceId} desactivado por inactividad`);
+}
+
+// Función para reactivar un dispositivo que vuelve a enviar señal
+function reactivarDispositivo(deviceId) {
+    const dispositivo = dispositivos.get(deviceId);
+    if (!dispositivo) return;
+    
+    console.log(`✅ Dispositivo ${deviceId} reactivado`);
+    
+    // Si estaba visible, volver a mostrar en el mapa
+    if (dispositivo.visible) {
+        const marcador = marcadores.get(deviceId);
+        const circulo = circulos.get(deviceId);
+        const trayectoria = trayectorias.get(deviceId);
+        
+        if (marcador) marcador.addTo(map);
+        if (circulo) circulo.addTo(map);
+        if (trayectoria) trayectoria.addTo(map);
+    }
+    
+    // Actualizar UI
+    const deviceElement = document.getElementById(`device-${deviceId}`);
+    if (deviceElement) {
+        const statusElement = deviceElement.querySelector('.device-status');
+        if (statusElement) {
+            statusElement.textContent = 'En línea';
+            statusElement.style.color = '#28a745';
+        }
+        deviceElement.style.opacity = '1';
+    }
+    
+    // Actualizar contador de dispositivos activos
+    actualizarContadorActivos();
+}
+
+// Función para actualizar contador de dispositivos activos
+function actualizarContadorActivos() {
+    let activos = 0;
+    dispositivos.forEach(dispositivo => {
+        if (dispositivo.activo) activos++;
+    });
+    document.getElementById('activeDevices').textContent = activos;
+}
+
+// Función para iniciar verificación periódica de dispositivos inactivos
+function iniciarVerificacionInactividad() {
+    if (verificadorInactividad) {
+        clearInterval(verificadorInactividad);
+    }
+    
+    // Verificar cada 5 segundos
+    verificadorInactividad = setInterval(() => {
+        verificarDispositivosInactivos();
+    }, 5000);
+    
+    console.log('🔍 Verificación de inactividad iniciada (cada 5s, timeout: 30s)');
 }
 
 // Función para centrar la vista en todos los dispositivos
@@ -788,6 +1000,10 @@ function limpiarMapa() {
     trayectorias.clear();
     puntosHistoricos.clear();
     rutasHistoricas.clear();
+    
+    // Limpiar buffers de suavizado
+    puntosRawBuffer.clear();
+    ultimoPuntoSuavizado.clear();
 }
 
 // Función para limpiar ruta histórica específica
@@ -1592,6 +1808,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Conectar WebSocket
     conectarWebSocket();
+    
+    // Iniciar verificación de dispositivos inactivos
+    iniciarVerificacionInactividad();
     
     // Actualizar información del servidor dinámicamente
     actualizarInfoServidor();

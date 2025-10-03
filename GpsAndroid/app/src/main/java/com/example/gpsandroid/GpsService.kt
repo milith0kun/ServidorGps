@@ -60,6 +60,13 @@ class GpsService : Service() {
     private var ultimaUbicacionValida: Location? = null
     private var ultimoTiempoUbicacion: Long = 0
     
+    // Variables para filtro de suavizado GPS
+    private var latitudSuavizada: Double = 0.0
+    private var longitudSuavizada: Double = 0.0
+    private var primeraUbicacion: Boolean = true
+    private val bufferUbicaciones = mutableListOf<Pair<Double, Double>>()
+    private val tamanoBufferMax = 3
+    
     override fun onCreate() {
         super.onCreate()
         Log.d("GpsService", "Servicio GPS creado")
@@ -83,8 +90,15 @@ class GpsService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
                     if (esUbicacionValida(location)) {
-                        enviarDatosGpsAlServidor(location)
-                        Log.d("GpsService", "Ubicación enviada desde servicio: ${location.latitude}, ${location.longitude}")
+                        // Aplicar suavizado GPS para mejorar precisión del recorrido
+                        val (latSuavizada, lonSuavizada) = aplicarSuavizadoGPS(
+                            location.latitude,
+                            location.longitude,
+                            location.accuracy
+                        )
+                        
+                        enviarDatosGpsAlServidor(location, latSuavizada, lonSuavizada)
+                        Log.d("GpsService", "Ubicación suavizada enviada: $latSuavizada, $lonSuavizada (original: ${location.latitude}, ${location.longitude})")
                     }
                 }
             }
@@ -179,6 +193,42 @@ class GpsService : Service() {
         Log.d("GpsService", "Actualizaciones de ubicación detenidas")
     }
     
+    /**
+     * Aplica filtro de suavizado GPS para reducir ruido y mejorar precisión del recorrido
+     */
+    private fun aplicarSuavizadoGPS(latitud: Double, longitud: Double, accuracy: Float): Pair<Double, Double> {
+        if (primeraUbicacion) {
+            latitudSuavizada = latitud
+            longitudSuavizada = longitud
+            primeraUbicacion = false
+            bufferUbicaciones.clear()
+            bufferUbicaciones.add(Pair(latitud, longitud))
+            return Pair(latitud, longitud)
+        }
+        
+        // Ganancia Kalman basada en accuracy
+        val gananciaKalman = when {
+            accuracy < 10.0f -> 0.7f
+            accuracy < 20.0f -> 0.5f
+            else -> 0.3f
+        }
+        
+        // Filtro Kalman simplificado
+        latitudSuavizada = latitudSuavizada + gananciaKalman * (latitud - latitudSuavizada)
+        longitudSuavizada = longitudSuavizada + gananciaKalman * (longitud - longitudSuavizada)
+        
+        // Promedio móvil
+        bufferUbicaciones.add(Pair(latitudSuavizada, longitudSuavizada))
+        if (bufferUbicaciones.size > tamanoBufferMax) {
+            bufferUbicaciones.removeAt(0)
+        }
+        
+        val promedioLat = bufferUbicaciones.map { it.first }.average()
+        val promedioLon = bufferUbicaciones.map { it.second }.average()
+        
+        return Pair(promedioLat, promedioLon)
+    }
+    
     // Función para validar ubicaciones (misma lógica que MainActivity)
     private fun esUbicacionValida(location: Location): Boolean {
         // Filtro 1: Verificar precisión mínima (menos de 100 metros para segundo plano)
@@ -214,7 +264,7 @@ class GpsService : Service() {
         return true
     }
     
-    private fun enviarDatosGpsAlServidor(location: Location) {
+    private fun enviarDatosGpsAlServidor(location: Location, latitudSuavizada: Double, longitudSuavizada: Double) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
@@ -223,8 +273,8 @@ class GpsService : Service() {
                 val gpsData = GpsData(
                     deviceId = deviceId,
                     deviceName = deviceName,
-                    lat = location.latitude,
-                    lon = location.longitude,
+                    lat = latitudSuavizada, // Usar coordenadas suavizadas
+                    lon = longitudSuavizada, // Usar coordenadas suavizadas
                     accuracy = location.accuracy,
                     timestamp = formatter.format(Date())
                 )
