@@ -102,8 +102,13 @@ class MainActivity : ComponentActivity() {
     private val bufferUbicaciones = mutableListOf<Pair<Double, Double>>()
     private val tamanoBufferMax = 3 // Promedio de últimas 3 ubicaciones
     
-    // Cliente HTTP para enviar datos al servidor
-    private val httpClient = OkHttpClient()
+    // Cliente HTTP para enviar datos al servidor con timeouts más largos
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true) // Reintentar automáticamente en caso de fallo
+        .build()
     private val serverUrl = "https://gps-tracking-edmil.loca.lt/api/ubicacion" // URL del túnel Localtunnel
     
     // Generar ID único y persistente del dispositivo
@@ -943,6 +948,8 @@ class MainActivity : ComponentActivity() {
     private fun enviarDatosGpsAlServidor(location: android.location.Location, latitudSuavizada: Double, longitudSuavizada: Double) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                Log.d("GPS_SENDER", "🔄 Intentando enviar datos GPS al servidor...")
+                
                 val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
                 formatter.timeZone = TimeZone.getTimeZone("UTC")
                 
@@ -958,24 +965,36 @@ class MainActivity : ComponentActivity() {
                 val json = Json.encodeToString(gpsData)
                 val requestBody = json.toRequestBody("application/json".toMediaType())
                 
+                Log.d("GPS_SENDER", "📡 Enviando a: $serverUrl")
+                Log.d("GPS_SENDER", "📍 Datos: lat=${gpsData.lat}, lon=${gpsData.lon}, acc=${gpsData.accuracy}")
+                
                 val request = Request.Builder()
                     .url(serverUrl)
                     .post(requestBody)
                     .addHeader("Content-Type", "application/json")
                     .build()
                 
+                val startTime = System.currentTimeMillis()
                 val response = httpClient.newCall(request).execute()
+                val elapsedTime = System.currentTimeMillis() - startTime
                 
                 if (response.isSuccessful) {
-                    Log.d("GPS_SENDER", "Datos GPS enviados exitosamente: ${response.code}")
+                    Log.d("GPS_SENDER", "✅ Datos GPS enviados exitosamente en ${elapsedTime}ms - Código: ${response.code}")
                 } else {
-                    Log.e("GPS_SENDER", "Error enviando datos GPS: ${response.code} - ${response.message}")
+                    Log.e("GPS_SENDER", "❌ Error enviando datos GPS: ${response.code} - ${response.message}")
+                    Log.e("GPS_SENDER", "📄 Respuesta: ${response.body?.string()}")
                 }
                 
                 response.close()
                 
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.e("GPS_SENDER", "⏱️ Timeout al conectar con el servidor. Revisa tu conexión a internet.", e)
+            } catch (e: java.net.UnknownHostException) {
+                Log.e("GPS_SENDER", "🌐 No se pudo resolver el host. Revisa tu conexión a internet.", e)
+            } catch (e: java.io.IOException) {
+                Log.e("GPS_SENDER", "📡 Error de red al enviar datos GPS: ${e.message}", e)
             } catch (e: Exception) {
-                Log.e("GPS_SENDER", "Excepción enviando datos GPS: ${e.message}", e)
+                Log.e("GPS_SENDER", "❌ Excepción enviando datos GPS: ${e.message}", e)
             }
         }
     }
