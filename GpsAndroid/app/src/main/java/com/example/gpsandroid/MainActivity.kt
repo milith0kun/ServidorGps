@@ -128,12 +128,12 @@ class MainActivity : ComponentActivity() {
         // Iniciar servicio GPS en segundo plano
         iniciarServicioGps()
         
-        // Configurar solicitud de ubicación con máxima precisión
-        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
-            .setWaitForAccurateLocation(true) // Esperar ubicaciones más precisas
-            .setMinUpdateIntervalMillis(500) // Mínimo 500ms entre actualizaciones
-            .setMaxUpdateDelayMillis(2000) // Máximo 2 segundos de retraso
-            .setMinUpdateDistanceMeters(1.0f) // Solo actualizar si se mueve al menos 1 metro
+        // Configurar solicitud de ubicación con MÁXIMA precisión para tracking en tiempo real
+        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000) // Cada 2 segundos
+            .setWaitForAccurateLocation(false) // No esperar, enviar rápido
+            .setMinUpdateIntervalMillis(1000) // Mínimo 1 segundo entre actualizaciones
+            .setMaxUpdateDelayMillis(3000) // Máximo 3 segundos de retraso
+            .setMinUpdateDistanceMeters(2.0f) // Actualizar si se mueve 2 metros (alta precisión)
             .setMaxUpdates(Integer.MAX_VALUE) // Sin límite de actualizaciones
             .build()
         

@@ -13,6 +13,11 @@ let dispositivosVisibles = new Set(); // Dispositivos actualmente visibles
 let coloresDispositivos = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
 let contadorColores = 0;
 
+// Variables para trayectorias en tiempo real
+let trayectorias = new Map(); // Almacena polylines de trayectorias por deviceId
+let puntosHistoricos = new Map(); // Almacena puntos GPS por deviceId para dibujar trayectoria
+let maxPuntosTrayectoria = 500; // Máximo de puntos a mantener en memoria
+
 // Variables para rutas históricas
 let rutasHistoricas = new Map(); // Almacena rutas históricas por deviceId
 let modoTiempoReal = true; // Indica si estamos en modo tiempo real
@@ -463,6 +468,50 @@ function actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, 
             </div>
         `);
     }
+    
+    // Actualizar trayectoria del dispositivo
+    actualizarTrayectoria(deviceId, latitude, longitude);
+}
+
+// Función para actualizar y dibujar la trayectoria del dispositivo
+function actualizarTrayectoria(deviceId, latitude, longitude) {
+    const dispositivo = dispositivos.get(deviceId);
+    if (!dispositivo || !dispositivo.visible) return;
+    
+    // Obtener o inicializar array de puntos históricos
+    if (!puntosHistoricos.has(deviceId)) {
+        puntosHistoricos.set(deviceId, []);
+    }
+    
+    const puntos = puntosHistoricos.get(deviceId);
+    
+    // Agregar nuevo punto
+    puntos.push([latitude, longitude]);
+    
+    // Limitar cantidad de puntos para no saturar memoria
+    if (puntos.length > maxPuntosTrayectoria) {
+        puntos.shift(); // Eliminar el punto más antiguo
+    }
+    
+    // Obtener o crear polyline para la trayectoria
+    let trayectoria = trayectorias.get(deviceId);
+    
+    if (!trayectoria && puntos.length >= 2) {
+        // Crear nueva polyline
+        trayectoria = L.polyline(puntos, {
+            color: dispositivo.color,
+            weight: 3,
+            opacity: 0.7,
+            smoothFactor: 1
+        }).addTo(map);
+        
+        trayectorias.set(deviceId, trayectoria);
+        
+        console.log(`🛤️ Trayectoria creada para ${deviceId} con ${puntos.length} puntos`);
+    } else if (trayectoria) {
+        // Actualizar polyline existente
+        trayectoria.setLatLngs(puntos);
+    }
 }
 
 // Función para alternar visibilidad de dispositivo
@@ -473,6 +522,7 @@ function toggleDispositivo(deviceId) {
     const toggle = document.querySelector(`#device-${deviceId} .device-toggle`);
     const marcador = marcadores.get(deviceId);
     const circulo = circulos.get(deviceId);
+    const trayectoria = trayectorias.get(deviceId);
     
     if (dispositivo.visible) {
         // Ocultar dispositivo
@@ -482,6 +532,7 @@ function toggleDispositivo(deviceId) {
         
         if (marcador) map.removeLayer(marcador);
         if (circulo) map.removeLayer(circulo);
+        if (trayectoria) map.removeLayer(trayectoria);
     } else {
         // Mostrar dispositivo
         dispositivo.visible = true;
@@ -490,6 +541,7 @@ function toggleDispositivo(deviceId) {
         
         if (marcador) marcador.addTo(map);
         if (circulo) circulo.addTo(map);
+        if (trayectoria) trayectoria.addTo(map);
     }
 }
 
@@ -718,6 +770,11 @@ function limpiarMapa() {
         map.removeLayer(circulo);
     });
     
+    // Limpiar trayectorias
+    trayectorias.forEach(trayectoria => {
+        map.removeLayer(trayectoria);
+    });
+    
     // Limpiar rutas históricas
     rutasHistoricas.forEach(ruta => {
         if (ruta.ruta) map.removeLayer(ruta.ruta);
@@ -728,6 +785,8 @@ function limpiarMapa() {
     // Limpiar mapas de datos
     marcadores.clear();
     circulos.clear();
+    trayectorias.clear();
+    puntosHistoricos.clear();
     rutasHistoricas.clear();
 }
 

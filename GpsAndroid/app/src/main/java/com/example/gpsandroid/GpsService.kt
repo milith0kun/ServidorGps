@@ -70,12 +70,12 @@ class GpsService : Service() {
         // Inicializar cliente de ubicación
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
-        // Configurar solicitud de ubicación para segundo plano
-        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000) // 10 segundos
-            .setWaitForAccurateLocation(true)
-            .setMinUpdateIntervalMillis(5000) // Mínimo 5 segundos
-            .setMaxUpdateDelayMillis(15000) // Máximo 15 segundos
-            .setMinUpdateDistanceMeters(5.0f) // Solo actualizar si se mueve al menos 5 metros
+        // Configurar solicitud de ubicación para segundo plano con ALTA PRECISIÓN
+        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000) // Cada 3 segundos
+            .setWaitForAccurateLocation(false) // No esperar para envío rápido
+            .setMinUpdateIntervalMillis(2000) // Mínimo 2 segundos
+            .setMaxUpdateDelayMillis(5000) // Máximo 5 segundos
+            .setMinUpdateDistanceMeters(2.0f) // Actualizar si se mueve 2 metros (tracking preciso)
             .build()
         
         // Configurar callback de ubicación
