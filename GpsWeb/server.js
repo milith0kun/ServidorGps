@@ -450,12 +450,28 @@ app.post('/api/gps', async (req, res) => {
         // Obtener o crear dispositivo
         const dispositivo = await obtenerOCrearDispositivo(deviceId, deviceName);
         
+        // Procesar timestamp - convertir a milisegundos si viene como string ISO o número
+        let timestampFinal;
+        if (timestamp) {
+            if (typeof timestamp === 'string') {
+                // Si es string ISO, convertir a milisegundos
+                timestampFinal = new Date(timestamp).getTime();
+            } else if (typeof timestamp === 'number') {
+                // Si es número, verificar si está en segundos o milisegundos
+                timestampFinal = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+            } else {
+                timestampFinal = Date.now();
+            }
+        } else {
+            timestampFinal = Date.now();
+        }
+        
         // Crear objeto de ubicación
         const nuevaUbicacion = {
             lat: parseFloat(lat),
             lon: parseFloat(lon),
             accuracy: parseFloat(accuracy) || 0,
-            timestamp: timestamp || Date.now(),
+            timestamp: timestampFinal,
             recibido: new Date().toISOString(),
             deviceId: deviceId,
             source: 'android_app'
@@ -469,7 +485,7 @@ app.post('/api/gps', async (req, res) => {
                     parseFloat(lat),
                     parseFloat(lon),
                     parseFloat(accuracy) || 0,
-                    timestamp || Date.now(),
+                    timestampFinal,
                     'android_app'
                 );
                 console.log(`💾 Ubicación GPS guardada en BD para ${deviceName}`);
@@ -541,8 +557,22 @@ app.post('/api/ubicacion', async (req, res) => {
         const dispositivoId = deviceId || clienteInfo.ip;
         const dispositivo = await obtenerOCrearDispositivo(dispositivoId, clienteInfo.userAgent);
         
-        // Procesar timestamp
-        const timestampFinal = timestamp || Date.now();
+        // Procesar timestamp - convertir a milisegundos si viene como string ISO o número
+        let timestampFinal;
+        if (timestamp) {
+            if (typeof timestamp === 'string') {
+                // Si es string ISO, convertir a milisegundos
+                timestampFinal = new Date(timestamp).getTime();
+            } else if (typeof timestamp === 'number') {
+                // Si es número, verificar si está en segundos o milisegundos
+                // Si el número es menor a 10^12, probablemente está en segundos
+                timestampFinal = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+            } else {
+                timestampFinal = Date.now();
+            }
+        } else {
+            timestampFinal = Date.now();
+        }
         
         // Crear objeto de ubicación
         const nuevaUbicacion = {
