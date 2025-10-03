@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
     
     // Cliente HTTP para enviar datos al servidor
     private val httpClient = OkHttpClient()
-    private val serverUrl = "https://kickless-anamaria-nonwaxing.ngrok-free.dev/api/ubicacion" // URL del túnel Ngrok
+    private val serverUrl = "https://gps-tracking-edmil.loca.lt/api/ubicacion" // URL del túnel Localtunnel
     
     // Generar ID único y persistente del dispositivo
     private fun getUniqueDeviceId(): String {
