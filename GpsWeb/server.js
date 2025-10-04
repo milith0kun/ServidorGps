@@ -559,10 +559,10 @@ app.post('/api/gps', async (req, res) => {
     }
 });
 
-// Endpoint para recibir ubicación desde la app Android (compatibilidad)
+// Endpoint para recibir ubicación desde la app Android (compatibilidad) con datos de sensores
 app.post('/api/ubicacion', async (req, res) => {
     try {
-        const { lat, lon, latitude, longitude, accuracy, timestamp, deviceId, source } = req.body;
+        const { lat, lon, latitude, longitude, accuracy, timestamp, deviceId, source, accelX, accelY, accelZ, steps, speed } = req.body;
         
         // Soportar tanto lat/lon como latitude/longitude
         const latitud = lat || latitude;
@@ -605,7 +605,7 @@ app.post('/api/ubicacion', async (req, res) => {
             timestampFinal = Date.now();
         }
         
-        // Crear objeto de ubicación
+        // Crear objeto de ubicación con datos de sensores
         const nuevaUbicacion = {
             lat: parseFloat(latitud),
             lon: parseFloat(longitud),
@@ -613,10 +613,15 @@ app.post('/api/ubicacion', async (req, res) => {
             timestamp: timestampFinal,
             recibido: new Date().toISOString(),
             deviceId: dispositivoId,
-            source: source || 'android_app'
+            source: source || 'android_app',
+            accelX: accelX !== undefined ? parseFloat(accelX) : null,
+            accelY: accelY !== undefined ? parseFloat(accelY) : null,
+            accelZ: accelZ !== undefined ? parseFloat(accelZ) : null,
+            steps: steps !== undefined ? parseInt(steps) : null,
+            speed: speed !== undefined ? parseFloat(speed) : null
         };
         
-        // Guardar en base de datos
+        // Guardar en base de datos con datos de sensores
         if (dbManager.isReady()) {
             try {
                 await dbManager.insertLocation(
@@ -625,9 +630,25 @@ app.post('/api/ubicacion', async (req, res) => {
                     parseFloat(longitud),
                     parseFloat(accuracy) || 0,
                     timestampFinal,
-                    source || 'android_app'
+                    source || 'android_app',
+                    {
+                        accelX: accelX,
+                        accelY: accelY,
+                        accelZ: accelZ,
+                        steps: steps,
+                        speed: speed
+                    }
                 );
-                console.log(`💾 Ubicación guardada en BD para dispositivo ${dispositivoId}`);
+                console.log(`💾 Ubicación con datos de sensores guardada en BD para dispositivo ${dispositivoId}`);
+                if (accelX || accelY || accelZ) {
+                    console.log(`📊 Acelerómetro: X=${accelX?.toFixed(2)}, Y=${accelY?.toFixed(2)}, Z=${accelZ?.toFixed(2)}`);
+                }
+                if (steps) {
+                    console.log(`👣 Pasos: ${steps}`);
+                }
+                if (speed) {
+                    console.log(`🏃 Velocidad: ${speed.toFixed(2)} m/s`);
+                }
             } catch (dbErr) {
                 console.error('❌ Error guardando ubicación en BD:', dbErr);
                 // Continuar aunque falle la BD

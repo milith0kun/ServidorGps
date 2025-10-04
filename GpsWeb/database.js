@@ -54,7 +54,7 @@ class DatabaseManager {
                 )
             `;
 
-            // Tabla para ubicaciones GPS
+            // Tabla para ubicaciones GPS con datos de sensores
             const createLocationsTable = `
                 CREATE TABLE IF NOT EXISTS locations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +65,11 @@ class DatabaseManager {
                     timestamp BIGINT NOT NULL,
                     formatted_time TEXT NOT NULL,
                     source TEXT DEFAULT 'unknown',
+                    accel_x REAL,
+                    accel_y REAL,
+                    accel_z REAL,
+                    steps INTEGER,
+                    speed REAL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (device_id) REFERENCES devices (id)
                 )
@@ -109,7 +114,46 @@ class DatabaseManager {
                     });
                 });
 
+                // Migrar tabla existente para agregar columnas de sensores si no existen
+                this.migrateLocationColumns();
+
                 resolve();
+            });
+        });
+    }
+
+    /**
+     * Migra la tabla locations para agregar columnas de sensores
+     */
+    async migrateLocationColumns() {
+        const columnsToAdd = [
+            { name: 'accel_x', type: 'REAL' },
+            { name: 'accel_y', type: 'REAL' },
+            { name: 'accel_z', type: 'REAL' },
+            { name: 'steps', type: 'INTEGER' },
+            { name: 'speed', type: 'REAL' }
+        ];
+
+        // Verificar qué columnas existen
+        this.db.all("PRAGMA table_info(locations)", (err, columns) => {
+            if (err) {
+                console.error('❌ Error verificando estructura de tabla:', err);
+                return;
+            }
+
+            const existingColumns = columns.map(col => col.name);
+            
+            columnsToAdd.forEach(col => {
+                if (!existingColumns.includes(col.name)) {
+                    const alterQuery = `ALTER TABLE locations ADD COLUMN ${col.name} ${col.type}`;
+                    this.db.run(alterQuery, (err) => {
+                        if (err) {
+                            console.error(`❌ Error agregando columna ${col.name}:`, err.message);
+                        } else {
+                            console.log(`✅ Columna ${col.name} agregada a locations`);
+                        }
+                    });
+                }
             });
         });
     }
@@ -137,19 +181,32 @@ class DatabaseManager {
     }
 
     /**
-     * Inserta una nueva ubicación GPS
+     * Inserta una nueva ubicación GPS con datos de sensores
      */
-    async insertLocation(deviceId, latitude, longitude, accuracy, timestamp, source = 'unknown') {
+    async insertLocation(deviceId, latitude, longitude, accuracy, timestamp, source = 'unknown', sensorData = {}) {
         return new Promise((resolve, reject) => {
             // Formatear timestamp para visualización
             const formattedTime = moment(timestamp).format('YYYY-MM-DD HH:mm:ss');
             
             const query = `
-                INSERT INTO locations (device_id, latitude, longitude, accuracy, timestamp, formatted_time, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO locations (device_id, latitude, longitude, accuracy, timestamp, formatted_time, source, accel_x, accel_y, accel_z, steps, speed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
-            this.db.run(query, [deviceId, latitude, longitude, accuracy, timestamp, formattedTime, source], function(err) {
+            this.db.run(query, [
+                deviceId, 
+                latitude, 
+                longitude, 
+                accuracy, 
+                timestamp, 
+                formattedTime, 
+                source,
+                sensorData.accelX || null,
+                sensorData.accelY || null,
+                sensorData.accelZ || null,
+                sensorData.steps || null,
+                sensorData.speed || null
+            ], function(err) {
                 if (err) {
                     console.error('❌ Error insertando ubicación:', err.message);
                     reject(err);

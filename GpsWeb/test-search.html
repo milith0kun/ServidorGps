@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Búsqueda</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        input {
+            width: 70%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #results {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            min-height: 100px;
+        }
+        .result-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .result-item:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test de Búsqueda de Lugares</h1>
+    
+    <div>
+        <input type="text" id="searchInput" placeholder="Ingresa ciudad o lugar...">
+        <button id="searchBtn">Buscar</button>
+    </div>
+    
+    <div id="results">
+        <p style="color: #666;">Los resultados aparecerán aquí...</p>
+    </div>
+    
+    <script>
+        console.log('✅ Script cargado');
+        
+        const searchBtn = document.getElementById('searchBtn');
+        const searchInput = document.getElementById('searchInput');
+        const resultsDiv = document.getElementById('results');
+        
+        console.log('Botón:', searchBtn);
+        console.log('Input:', searchInput);
+        
+        async function buscar() {
+            const query = searchInput.value.trim();
+            console.log('🔍 Buscando:', query);
+            
+            if (!query) {
+                resultsDiv.innerHTML = '<p style="color: red;">Por favor ingresa un término de búsqueda</p>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<p style="color: blue;">🔄 Buscando...</p>';
+            
+            try {
+                const url = `/api/buscar-lugar?q=${encodeURIComponent(query)}`;
+                console.log('📡 URL:', url);
+                
+                const response = await fetch(url);
+                console.log('📥 Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('✅ Datos recibidos:', data.length, 'resultados');
+                
+                if (data.length === 0) {
+                    resultsDiv.innerHTML = '<p style="color: orange;">⚠️ No se encontraron resultados</p>';
+                    return;
+                }
+                
+                let html = `<h3>✅ ${data.length} resultados:</h3>`;
+                data.forEach((item, index) => {
+                    html += `
+                        <div class="result-item" onclick="alert('Seleccionaste: ${item.display_name.replace(/'/g, "\\'")}')">
+                            <strong>${index + 1}. ${item.name || item.display_name.split(',')[0]}</strong><br>
+                            <small>${item.display_name}</small><br>
+                            <small style="color: #666;">Lat: ${item.lat}, Lon: ${item.lon}</small>
+                        </div>
+                    `;
+                });
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                resultsDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        searchBtn.addEventListener('click', buscar);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                buscar();
+            }
+        });
+        
+        console.log('✅ Event listeners configurados');
+    </script>
+</body>
+</html>

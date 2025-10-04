@@ -42,6 +42,10 @@ import android.util.Log
 import android.content.ComponentName
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 
 @Serializable
 data class GpsData(
@@ -50,7 +54,12 @@ data class GpsData(
     val lat: Double,
     val lon: Double,
     val accuracy: Float,
-    val timestamp: String
+    val timestamp: String,
+    val accelX: Float? = null,
+    val accelY: Float? = null,
+    val accelZ: Float? = null,
+    val steps: Int? = null,
+    val speed: Float? = null
 )
 
 // Clases de datos para búsqueda y navegación
@@ -67,12 +76,26 @@ data class RutaInfo(
     val instrucciones: List<String>
 )
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), SensorEventListener {
     
     // Cliente de ubicación de Google Play Services
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
+    
+    // Sensores para mejorar precisión
+    private lateinit var sensorManager: SensorManager
+    private var accelerometer: Sensor? = null
+    private var stepCounter: Sensor? = null
+    private var stepDetector: Sensor? = null
+    
+    // Datos de sensores
+    private var accelX by mutableStateOf(0f)
+    private var accelY by mutableStateOf(0f)
+    private var accelZ by mutableStateOf(0f)
+    private var totalSteps by mutableStateOf(0)
+    private var initialSteps = 0
+    private var hasInitialSteps = false
     
     // Estados para la UI
     private var latitud by mutableStateOf("--")
@@ -82,6 +105,8 @@ class MainActivity : ComponentActivity() {
     private var tienePermisos by mutableStateOf(false)
     private var gpsActivado by mutableStateOf(false)
     private var servicioEnSegundoPlano by mutableStateOf(false)
+    private var velocidad by mutableStateOf("--")
+    private var aceleracion by mutableStateOf("--")
     
     // Variables para búsqueda y navegación
     private var textoBusqueda by mutableStateOf("")
@@ -139,6 +164,9 @@ class MainActivity : ComponentActivity() {
         
         // Inicializar cliente de ubicación
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        
+        // Inicializar sensores para mejorar precisión
+        inicializarSensores()
         
         // Iniciar servicio GPS en segundo plano
         iniciarServicioGps()
@@ -882,6 +910,7 @@ class MainActivity : ComponentActivity() {
         
         // Verificar que no sea una ubicación mock (si está disponible)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            @Suppress("DEPRECATION")
             if (location.isFromMockProvider) {
                 Log.w("GPS_VALIDATION", "Ubicación rechazada: es una ubicación simulada")
                 return false
@@ -945,6 +974,126 @@ class MainActivity : ComponentActivity() {
         return true
     }
     
+    /**
+     * Inicializa los sensores de acelerómetro y contador de pasos
+     */
+    private fun inicializarSensores() {
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        
+        // Acelerómetro para detectar movimiento y mejorar precisión
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (accelerometer != null) {
+            Log.d("SENSORS", "✅ Acelerómetro disponible")
+        } else {
+            Log.w("SENSORS", "⚠️ Acelerómetro no disponible en este dispositivo")
+        }
+        
+        // Contador de pasos (disponible desde Android 4.4 / API 19)
+        stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        if (stepCounter != null) {
+            Log.d("SENSORS", "✅ Contador de pasos disponible")
+        } else {
+            Log.w("SENSORS", "⚠️ Contador de pasos no disponible, intentando con detector")
+            // Intentar con detector de pasos como alternativa
+            stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+            if (stepDetector != null) {
+                Log.d("SENSORS", "✅ Detector de pasos disponible como alternativa")
+            }
+        }
+        
+        // Registrar listeners de sensores
+        accelerometer?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        
+        stepCounter?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        
+        stepDetector?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+    
+    /**
+     * Callback cuando cambian los valores del sensor
+     */
+    override fun onSensorChanged(event: SensorEvent?) {
+        event?.let {
+            when (it.sensor.type) {
+                Sensor.TYPE_ACCELEROMETER -> {
+                    // Actualizar valores de aceleración (filtro de paso bajo para suavizar)
+                    val alpha = 0.8f
+                    accelX = alpha * accelX + (1 - alpha) * it.values[0]
+                    accelY = alpha * accelY + (1 - alpha) * it.values[1]
+                    accelZ = alpha * accelZ + (1 - alpha) * it.values[2]
+                    
+                    // Calcular magnitud de aceleración
+                    val magnitude = kotlin.math.sqrt(
+                        accelX * accelX + accelY * accelY + accelZ * accelZ
+                    )
+                    aceleracion = String.format("%.2f m/s²", magnitude)
+                }
+                
+                Sensor.TYPE_STEP_COUNTER -> {
+                    // El sensor TYPE_STEP_COUNTER cuenta pasos desde el último reinicio
+                    if (!hasInitialSteps) {
+                        initialSteps = it.values[0].toInt()
+                        hasInitialSteps = true
+                        Log.d("SENSORS", "📊 Pasos iniciales: $initialSteps")
+                    }
+                    totalSteps = it.values[0].toInt() - initialSteps
+                }
+                
+                Sensor.TYPE_STEP_DETECTOR -> {
+                    // El detector incrementa cada vez que detecta un paso
+                    totalSteps++
+                }
+                
+                else -> {
+                    // Otros tipos de sensores no nos interesan
+                }
+            }
+        }
+    }
+    
+    /**
+     * Callback cuando cambia la precisión del sensor
+     */
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // No es necesario hacer nada aquí
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Verificar permisos cada vez que la aplicación regresa al primer plano
+        verificarPermisos()
+        if (tienePermisos) {
+            verificarGpsYComenzarActualizaciones()
+        }
+        
+        // Reactivar sensores cuando la app vuelve al frente
+        accelerometer?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        stepCounter?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+        stepDetector?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Detener actualizaciones de ubicación
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+        
+        // Desactivar sensores cuando la app va al fondo para ahorrar batería
+        // (el servicio en segundo plano seguirá funcionando)
+        sensorManager.unregisterListener(this)
+    }
+    
     private fun enviarDatosGpsAlServidor(location: android.location.Location, latitudSuavizada: Double, longitudSuavizada: Double) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -953,13 +1102,21 @@ class MainActivity : ComponentActivity() {
                 val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
                 formatter.timeZone = TimeZone.getTimeZone("UTC")
                 
+                // Obtener velocidad si está disponible
+                val speed = if (location.hasSpeed()) location.speed else null
+                
                 val gpsData = GpsData(
                     deviceId = deviceId,
                     deviceName = deviceName,
                     lat = latitudSuavizada, // Usar coordenadas suavizadas
                     lon = longitudSuavizada, // Usar coordenadas suavizadas
                     accuracy = location.accuracy,
-                    timestamp = formatter.format(Date())
+                    timestamp = formatter.format(Date()),
+                    accelX = if (accelX != 0f) accelX else null,
+                    accelY = if (accelY != 0f) accelY else null,
+                    accelZ = if (accelZ != 0f) accelZ else null,
+                    steps = if (totalSteps > 0) totalSteps else null,
+                    speed = speed
                 )
                 
                 val json = Json.encodeToString(gpsData)
@@ -999,23 +1156,10 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    override fun onResume() {
-        super.onResume()
-        // Verificar permisos cada vez que la aplicación regresa al primer plano
-        // Esto es importante porque el usuario puede haber cambiado los permisos desde configuración
-        verificarPermisos()
-        if (tienePermisos) {
-            verificarGpsYComenzarActualizaciones()
-        }
-    }
-    
-    override fun onPause() {
-        super.onPause()
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-    }
-    
     override fun onDestroy() {
         super.onDestroy()
+        // Desregistrar sensores para liberar recursos
+        sensorManager.unregisterListener(this)
         // El servicio continúa ejecutándose en segundo plano
     }
     

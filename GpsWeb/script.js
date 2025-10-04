@@ -295,9 +295,18 @@ function conectarWebSocket() {
     }
 }
 
-// Función para actualizar la ubicación en el mapa
+// Función para actualizar la ubicación en el mapa con datos de sensores
 function actualizarUbicacion(data) {
-    const { deviceId, latitude, longitude, accuracy, timestamp } = data;
+    const { deviceId, latitude, longitude, accuracy, timestamp, accelX, accelY, accelZ, steps, speed } = data;
+    
+    // Empaquetar datos de sensores
+    const sensorData = {
+        accelX: accelX,
+        accelY: accelY,
+        accelZ: accelZ,
+        steps: steps,
+        speed: speed
+    };
     
     // Validar y procesar timestamp
     let timestampValido = timestamp;
@@ -375,8 +384,8 @@ function actualizarUbicacion(data) {
         }
     }
     
-    // Actualizar marcador en el mapa
-    actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, timestampValido);
+    // Actualizar marcador en el mapa con datos de sensores
+    actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, timestampValido, sensorData);
     
     // Actualizar información en el panel
     document.getElementById('latitud').textContent = latitude.toFixed(6);
@@ -421,8 +430,8 @@ function crearElementoDispositivo(deviceId, color) {
     console.log(`✅ Elemento de interfaz creado para dispositivo: ${deviceId}`);
 }
 
-// Función para actualizar marcador de dispositivo
-function actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, timestamp) {
+// Función para actualizar marcador de dispositivo con datos de sensores
+function actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, timestamp, sensorData = {}) {
     const dispositivo = dispositivos.get(deviceId);
     if (!dispositivo || !dispositivo.visible) return;
     
@@ -477,13 +486,34 @@ function actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, 
             second: '2-digit'
         });
         
-        // Agregar popup con información
+        // Construir información de sensores si está disponible
+        let sensorInfo = '';
+        if (sensorData) {
+            if (sensorData.accelX !== null && sensorData.accelX !== undefined) {
+                const accelMagnitude = Math.sqrt(
+                    sensorData.accelX * sensorData.accelX + 
+                    sensorData.accelY * sensorData.accelY + 
+                    sensorData.accelZ * sensorData.accelZ
+                ).toFixed(2);
+                sensorInfo += `<p style="margin: 4px 0;"><strong>📊 Aceleración:</strong> ${accelMagnitude} m/s²</p>`;
+            }
+            if (sensorData.steps !== null && sensorData.steps !== undefined && sensorData.steps > 0) {
+                sensorInfo += `<p style="margin: 4px 0;"><strong>👣 Pasos:</strong> ${sensorData.steps}</p>`;
+            }
+            if (sensorData.speed !== null && sensorData.speed !== undefined) {
+                const speedKmh = (sensorData.speed * 3.6).toFixed(1);
+                sensorInfo += `<p style="margin: 4px 0;"><strong>🏃 Velocidad:</strong> ${speedKmh} km/h</p>`;
+            }
+        }
+        
+        // Agregar popup con información incluyendo sensores
         marcador.bindPopup(`
             <div style="font-family: Arial, sans-serif;">
                 <h4 style="margin: 0 0 8px 0; color: #333;">Dispositivo ${deviceId}</h4>
                 <p style="margin: 4px 0;"><strong>Latitud:</strong> ${latitude.toFixed(6)}</p>
                 <p style="margin: 4px 0;"><strong>Longitud:</strong> ${longitude.toFixed(6)}</p>
-                <p style="margin: 4px 0;"><strong>Precisión:</strong> ${accuracy}m</p>
+                <p style="margin: 4px 0;"><strong>Precisión GPS:</strong> ${accuracy}m</p>
+                ${sensorInfo}
                 <p style="margin: 4px 0;"><strong>Fecha y Hora:</strong> ${fechaHoraPopup}</p>
             </div>
         `);
@@ -503,13 +533,34 @@ function actualizarMarcadorDispositivo(deviceId, latitude, longitude, accuracy, 
             second: '2-digit'
         });
         
-        // Actualizar popup
+        // Construir información de sensores actualizada
+        let sensorInfoActualizada = '';
+        if (sensorData) {
+            if (sensorData.accelX !== null && sensorData.accelX !== undefined) {
+                const accelMagnitude = Math.sqrt(
+                    sensorData.accelX * sensorData.accelX + 
+                    sensorData.accelY * sensorData.accelY + 
+                    sensorData.accelZ * sensorData.accelZ
+                ).toFixed(2);
+                sensorInfoActualizada += `<p style="margin: 4px 0;"><strong>📊 Aceleración:</strong> ${accelMagnitude} m/s²</p>`;
+            }
+            if (sensorData.steps !== null && sensorData.steps !== undefined && sensorData.steps > 0) {
+                sensorInfoActualizada += `<p style="margin: 4px 0;"><strong>👣 Pasos:</strong> ${sensorData.steps}</p>`;
+            }
+            if (sensorData.speed !== null && sensorData.speed !== undefined) {
+                const speedKmh = (sensorData.speed * 3.6).toFixed(1);
+                sensorInfoActualizada += `<p style="margin: 4px 0;"><strong>🏃 Velocidad:</strong> ${speedKmh} km/h</p>`;
+            }
+        }
+        
+        // Actualizar popup con datos de sensores
         marcador.setPopupContent(`
             <div style="font-family: Arial, sans-serif;">
                 <h4 style="margin: 0 0 8px 0; color: #333;">Dispositivo ${deviceId}</h4>
                 <p style="margin: 4px 0;"><strong>Latitud:</strong> ${latitude.toFixed(6)}</p>
                 <p style="margin: 4px 0;"><strong>Longitud:</strong> ${longitude.toFixed(6)}</p>
-                <p style="margin: 4px 0;"><strong>Precisión:</strong> ${accuracy}m</p>
+                <p style="margin: 4px 0;"><strong>Precisión GPS:</strong> ${accuracy}m</p>
+                ${sensorInfoActualizada}
                 <p style="margin: 4px 0;"><strong>Fecha y Hora:</strong> ${fechaHoraActualizada}</p>
             </div>
         `);
