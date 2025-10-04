@@ -1918,14 +1918,45 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clearTrajectories').addEventListener('click', limpiarTrayectorias);
     
     // Configurar eventos de búsqueda y navegación
-    document.getElementById('searchButton').addEventListener('click', async function() {
-        const query = document.getElementById('searchInput').value.trim();
+    console.log('🔧 Configurando eventos de búsqueda...');
+    const searchButton = document.getElementById('searchButton');
+    const searchInput = document.getElementById('searchInput');
+    
+    if (!searchButton) {
+        console.error('❌ ERROR: No se encontró el botón searchButton');
+        alert('ERROR: Botón de búsqueda no encontrado. Recarga la página.');
+        return;
+    }
+    
+    if (!searchInput) {
+        console.error('❌ ERROR: No se encontró el input searchInput');
+        alert('ERROR: Campo de búsqueda no encontrado. Recarga la página.');
+        return;
+    }
+    
+    console.log('✅ Elementos de búsqueda encontrados correctamente');
+    
+    searchButton.addEventListener('click', async function() {
+        console.log('🔍 Click en botón de búsqueda detectado');
+        const query = searchInput.value.trim();
+        console.log('📝 Query ingresado:', query);
+        
+        if (!query) {
+            alert('Por favor ingresa un lugar para buscar');
+            return;
+        }
+        
         if (query) {
             this.textContent = '🔍 Buscando...';
             this.disabled = true;
             try {
+                console.log('📡 Llamando a buscarLugar()...');
                 const results = await buscarLugar(query);
+                console.log('📦 Resultados recibidos:', results.length);
                 mostrarResultadosBusqueda(results);
+            } catch (error) {
+                console.error('❌ Error en búsqueda:', error);
+                alert('Error al buscar: ' + error.message);
             } finally {
                 this.textContent = 'Buscar';
                 this.disabled = false;
@@ -1933,16 +1964,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    document.getElementById('searchInput').addEventListener('keypress', async function(e) {
+    searchInput.addEventListener('keypress', async function(e) {
         if (e.key === 'Enter') {
+            console.log('⌨️ Enter presionado en campo de búsqueda');
             const query = this.value.trim();
+            console.log('📝 Query:', query);
+            
+            if (!query) {
+                alert('Por favor ingresa un lugar para buscar');
+                return;
+            }
+            
             if (query) {
                 const searchBtn = document.getElementById('searchButton');
                 searchBtn.textContent = '🔍 Buscando...';
                 searchBtn.disabled = true;
                 try {
+                    console.log('📡 Llamando a buscarLugar() desde Enter...');
                     const results = await buscarLugar(query);
+                    console.log('📦 Resultados:', results.length);
                     mostrarResultadosBusqueda(results);
+                } catch (error) {
+                    console.error('❌ Error:', error);
+                    alert('Error al buscar: ' + error.message);
                 } finally {
                     searchBtn.textContent = 'Buscar';
                     searchBtn.disabled = false;
